@@ -30,6 +30,7 @@ CREATE TABLE tags (
 -- 4. Agents: The remote monitoring units
 CREATE TABLE agents (
     id             TEXT PRIMARY KEY,
+    version        INTEGER NOT NULL DEFAULT 1,
     section_id     TEXT NOT NULL,
     name           TEXT NOT NULL,
     api_key_hash   TEXT NOT NULL,

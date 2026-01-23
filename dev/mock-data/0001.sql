@@ -18,9 +18,9 @@ INSERT INTO sections (id, tenant_id, name) VALUES
 --------------------------------------------------------------------------------
 -- Agent-scoped tags for Pepsi USA
 INSERT INTO tags (id, section_id, name, scope) VALUES 
-('tag-mesh',    'sec-pepsi-usa', 'role:mesh-node', 'agent'),
-('tag-prod',    'sec-pepsi-usa', 'env:production', 'agent'),
-('tag-k8s',     'sec-pepsi-usa', 'infra:k8s',      'agent');
+('mesh-usa',    'sec-pepsi-usa', 'role:mesh-node', 'agent'),
+('prod',    'sec-pepsi-usa', 'env:production', 'agent'),
+('k8s',     'sec-pepsi-usa', 'infra:k8s',      'agent');
 
 -- Endpoint-scoped tags for Pepsi USA
 INSERT INTO tags (id, section_id, name, scope) VALUES 
@@ -41,9 +41,9 @@ INSERT INTO agents (id, section_id, name, api_key_hash, base_config) VALUES
 --------------------------------------------------------------------------------
 -- Assign node 01 and 02 to the mesh in USA
 INSERT INTO agent_tags (agent_id, tag_id) VALUES 
-('018d1234-5678-7001-8000-000000000001', 'mesh:usa'),
+('018d1234-5678-7001-8000-000000000001', 'mesh-usa'),
 ('018d1234-5678-7001-8000-000000000001', 'prod'),
-('018d1234-5678-7002-8000-000000000002', 'mesh:usa');
+('018d1234-5678-7002-8000-000000000002', 'mesh-usa');
 
 --------------------------------------------------------------------------------
 -- 5. STATIC ENDPOINTS (Agent-Specific)

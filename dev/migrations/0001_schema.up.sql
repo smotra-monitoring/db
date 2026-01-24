@@ -41,7 +41,7 @@ CREATE TABLE agents (
     name           TEXT NOT NULL,
     api_key_hash   TEXT NOT NULL,
     base_config    TEXT NOT NULL, -- JSON Blob
-    version        INT DEFAULT 1,
+    version        INT NOT NULL DEFAULT 1,
     last_seen_at   TEXT,          -- Nullable
     updated_at     TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
     created_at     TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),

@@ -6,7 +6,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE tenants (
     id           TEXT PRIMARY KEY,
     name         TEXT NOT NULL,
-    created_at   TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now'))
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now'))
 ) STRICT, WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
@@ -43,8 +43,8 @@ CREATE TABLE agents (
     base_config    TEXT NOT NULL, -- JSON Blob
     version        INT NOT NULL DEFAULT 1,
     last_seen_at   TEXT,          -- Nullable
-    updated_at     TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-    created_at     TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
     FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
@@ -67,8 +67,8 @@ CREATE TABLE endpoints (
     agent_id    TEXT NOT NULL,
     address     TEXT NOT NULL,
     enabled     INT DEFAULT 1,
-    updated_at  TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-    created_at  TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
     FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 

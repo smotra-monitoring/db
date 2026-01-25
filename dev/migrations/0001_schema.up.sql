@@ -27,7 +27,7 @@ CREATE TABLE tags (
     id           TEXT PRIMARY KEY,
     section_id   TEXT NOT NULL,
     name         TEXT NOT NULL,
-    scope        TEXT CHECK(scope IN ('agent', 'endpoint', 'global')) DEFAULT 'global',
+    scope        TEXT NOT NULL CHECK(scope IN ('agent', 'endpoint', 'global')) DEFAULT 'global',
     UNIQUE(section_id, name),
     FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;

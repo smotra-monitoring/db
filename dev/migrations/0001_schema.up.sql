@@ -66,6 +66,7 @@ CREATE TABLE endpoints (
     id          TEXT PRIMARY KEY,
     agent_id    TEXT NOT NULL,
     address     TEXT NOT NULL,
+    port        INT,
     enabled     INT NOT NULL DEFAULT 1,
     updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),

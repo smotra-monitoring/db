@@ -32,7 +32,8 @@ INSERT INTO tags (id, section_id, name, scope) VALUES
 --------------------------------------------------------------------------------
 -- Note: ids are UUIDv7 strings (mocked for readability)
 INSERT INTO agents (id, section_id, name, api_key_hash, base_config) VALUES 
-('018d1234-5678-7001-8000-000000000001', 'sec-pepsi-usa', 'pepsi-node-01', 'hash123', '{"monitoring":{"interval_secs":60}}'),
+-- Agent 1 api key is api_key
+('018d1234-5678-7001-8000-000000000001', 'sec-pepsi-usa', 'pepsi-node-01', '2e9bc6c94a4cbdfe2a31d2df79103a5eb3702eaf5d7018d47a774e9540a8ec29', '{"monitoring":{"interval_secs":60}}'),
 ('018d1234-5678-7002-8000-000000000002', 'sec-pepsi-usa', 'pepsi-node-02', 'hash456', '{"monitoring":{"interval_secs":60}}'),
 ('018d1234-5678-7003-8000-000000000003', 'sec-pepsi-mx',  'pepsi-mx-01',   'hash789', '{"monitoring":{"interval_secs":30}}');
 
@@ -49,10 +50,10 @@ INSERT INTO agent_tags (agent_id, tag_id) VALUES
 -- 5. STATIC ENDPOINTS (Agent-Specific)
 --------------------------------------------------------------------------------
 INSERT INTO endpoints (id, agent_id, address, enabled) VALUES 
-('end-01', '018d1234-5678-7001-8000-000000000001', '8.8.8.8', 1),
-('end-02', '018d1234-5678-7001-8000-000000000001', '1.1.1.1', 1);
+('018d1234-5678-7002-8000-000000000001', '018d1234-5678-7001-8000-000000000001', '8.8.8.8', 1),
+('018d1234-5678-7002-8000-000000000002', '018d1234-5678-7001-8000-000000000001', '1.1.1.1', 1);
 
 -- Tag the static endpoints
 INSERT INTO endpoint_tags (endpoint_id, tag_id) VALUES 
-('end-01', 'tag-dns'),
-('end-02', 'tag-dns');
+('018d1234-5678-7002-8000-000000000001', 'tag-dns'),
+('018d1234-5678-7002-8000-000000000002', 'tag-dns');

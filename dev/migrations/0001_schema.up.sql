@@ -66,6 +66,7 @@ CREATE TABLE agent_claims (
     -- Claim status
     claimed_at              TEXT,                  -- When user claimed it
     claimed_by_user_id      TEXT,                  -- Who claimed it
+    api_key_plaintext       TEXT,                  -- Temporary storage for API key (cleared after delivery)
     api_key_delivered       INT NOT NULL DEFAULT 0, -- Boolean: has agent received API key?
     FOREIGN KEY (claimed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
 ) STRICT, WITHOUT ROWID;

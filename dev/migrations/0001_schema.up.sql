@@ -10,7 +10,26 @@ CREATE TABLE tenants (
 ) STRICT, WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
--- 2. SECTIONS
+-- 2. USERS
+--------------------------------------------------------------------------------
+CREATE TABLE users (
+    id              TEXT PRIMARY KEY,
+    tenant_id       TEXT NOT NULL,
+    oauth_provider  TEXT NOT NULL,         -- e.g., 'github', 'google', 'microsoft'
+    oauth_subject   TEXT NOT NULL,         -- Unique ID from OAuth provider (sub claim)
+    display_name    TEXT NOT NULL,         -- User's display name
+    last_login_at   TEXT,                  -- Last successful login
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    UNIQUE(oauth_provider, oauth_subject),
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+) STRICT, WITHOUT ROWID;
+
+-- Index for OAuth lookups
+CREATE INDEX idx_users_oauth ON users(oauth_provider, oauth_subject);
+
+--------------------------------------------------------------------------------
+-- 3. SECTIONS
 --------------------------------------------------------------------------------
 CREATE TABLE sections (
     id           TEXT PRIMARY KEY,
@@ -21,7 +40,7 @@ CREATE TABLE sections (
 ) STRICT, WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
--- 3. TAGS
+-- 4. TAGS
 --------------------------------------------------------------------------------
 CREATE TABLE tags (
     id           TEXT PRIMARY KEY,
@@ -33,23 +52,55 @@ CREATE TABLE tags (
 ) STRICT, WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
--- 4. AGENTS
+-- 5. AGENT_CLAIMS (Temporary holding table for unclaimed agents)
+--------------------------------------------------------------------------------
+CREATE TABLE agent_claims (
+    id                      TEXT PRIMARY KEY,      -- Agent's self-generated UUIDv7
+    claim_token_hash        TEXT NOT NULL,         -- SHA-256 hash of claim token
+    hostname                TEXT NOT NULL,         -- Agent's system hostname (used as initial name)
+    agent_version           TEXT NOT NULL,         -- Agent software version
+    claim_token_expires_at  TEXT NOT NULL,         -- When claim token expires
+    last_seen_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    created_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    
+    -- Claim status
+    claimed_at              TEXT,                  -- When user claimed it
+    claimed_by_user_id      TEXT,                  -- Who claimed it
+    api_key_plaintext       TEXT,                  -- Temporary storage for API key (cleared after delivery)
+    api_key_delivered       INT NOT NULL DEFAULT 0, -- Boolean: has agent received API key?
+    FOREIGN KEY (claimed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+) STRICT, WITHOUT ROWID;
+
+-- Index for cleanup of expired claims
+CREATE INDEX idx_agent_claims_expires ON agent_claims(claim_token_expires_at);
+
+-- Index for checking delivery status
+CREATE INDEX idx_agent_claims_delivery ON agent_claims(claimed_at, api_key_delivered);
+
+--------------------------------------------------------------------------------
+-- 6. AGENTS (Production table - only claimed agents)
 --------------------------------------------------------------------------------
 CREATE TABLE agents (
     id             TEXT PRIMARY KEY,
     section_id     TEXT NOT NULL,
     name           TEXT NOT NULL,
     api_key_hash   TEXT NOT NULL,
-    base_config    TEXT NOT NULL, -- JSON Blob
+    base_config    TEXT NOT NULL DEFAULT '{}', -- JSON Blob
     version        INT NOT NULL DEFAULT 1,
-    last_seen_at   TEXT,          -- Nullable
+    
+    -- Agent metadata
+    agent_version  TEXT,                  -- Agent software version
+    
+    -- Lifecycle tracking
+    last_seen_at   TEXT,                  -- Last heartbeat/config fetch
     updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-    created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),  -- When claimed
+    
     FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
 ) STRICT, WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
--- 5. AGENT_TAGS (Junction)
+-- 7. AGENT_TAGS (Junction)
 --------------------------------------------------------------------------------
 CREATE TABLE agent_tags (
     agent_id    TEXT NOT NULL,
@@ -60,7 +111,7 @@ CREATE TABLE agent_tags (
 ) STRICT, WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
--- 6. ENDPOINTS
+-- 8. ENDPOINTS
 --------------------------------------------------------------------------------
 CREATE TABLE endpoints (
     id          TEXT PRIMARY KEY,
@@ -74,7 +125,7 @@ CREATE TABLE endpoints (
 ) STRICT, WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
--- 7. ENDPOINT_TAGS (Junction)
+-- 9. ENDPOINT_TAGS (Junction)
 --------------------------------------------------------------------------------
 CREATE TABLE endpoint_tags (
     endpoint_id TEXT NOT NULL,
@@ -91,7 +142,7 @@ CREATE TABLE endpoint_tags (
 -- Trigger 1: Direct Agent Update
 -- Bumps version when core agent data changes.
 CREATE TRIGGER trg_agents_updated
-AFTER UPDATE OF name, section_id, base_config, api_key_hash ON agents
+AFTER UPDATE OF name, section_id, base_config, api_key_hash, agent_version ON agents
 FOR EACH ROW
 BEGIN
     UPDATE agents 
@@ -179,3 +230,13 @@ BEGIN
     UPDATE agents SET version = version + 1, updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
     WHERE id = (SELECT agent_id FROM endpoints WHERE id = NEW.endpoint_id);
 END;
+
+--------------------------------------------------------------------------------
+-- AGENT CLAIMS MANAGEMENT
+--------------------------------------------------------------------------------
+
+-- Note: Periodic cleanup of expired/delivered claims should be done by a background job
+-- Query for cleanup:
+-- DELETE FROM agent_claims 
+-- WHERE claim_token_expires_at < strftime('%Y-%m-%d %H:%M:%S', 'now')
+--    OR (claimed_at IS NOT NULL AND api_key_delivered = 1);

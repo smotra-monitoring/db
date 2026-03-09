@@ -59,7 +59,7 @@ CREATE TABLE agent_claims (
     claim_token_hash        TEXT NOT NULL,         -- SHA-256 hash of claim token
     hostname                TEXT NOT NULL,         -- Agent's system hostname (used as initial name)
     agent_version           TEXT NOT NULL,         -- Agent software version
-    claim_token_expires_at  TEXT NOT NULL,         -- When claim token expires
+    claim_token_expires_at  DATETIME NOT NULL,         -- When claim token expires
     last_seen_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
     created_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
     
@@ -69,7 +69,7 @@ CREATE TABLE agent_claims (
     api_key_plaintext       TEXT,                  -- Temporary storage for API key (cleared after delivery)
     api_key_delivered       INT NOT NULL DEFAULT 0, -- Boolean: has agent received API key?
     FOREIGN KEY (claimed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-) STRICT, WITHOUT ROWID;
+) WITHOUT ROWID;
 
 -- Index for cleanup of expired claims
 CREATE INDEX idx_agent_claims_expires ON agent_claims(claim_token_expires_at);

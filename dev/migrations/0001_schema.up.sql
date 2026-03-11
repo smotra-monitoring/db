@@ -6,8 +6,8 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE tenants (
     id           TEXT PRIMARY KEY,
     name         TEXT NOT NULL,
-    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now'))
-) STRICT, WITHOUT ROWID;
+    created_at   DATETIME NOT NULL DEFAULT (datetime('now'))
+) WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
 -- 2. USERS
@@ -18,12 +18,12 @@ CREATE TABLE users (
     oauth_provider  TEXT NOT NULL,         -- e.g., 'github', 'google', 'microsoft'
     oauth_subject   TEXT NOT NULL,         -- Unique ID from OAuth provider (sub claim)
     display_name    TEXT NOT NULL,         -- User's display name
-    last_login_at   TEXT,                  -- Last successful login
-    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-    updated_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    last_login_at   DATETIME,                  -- Last successful login
+    created_at      DATETIME NOT NULL DEFAULT (datetime('now')),
+    updated_at      DATETIME NOT NULL DEFAULT (datetime('now')),
     UNIQUE(oauth_provider, oauth_subject),
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-) STRICT, WITHOUT ROWID;
+) WITHOUT ROWID;
 
 -- Index for OAuth lookups
 CREATE INDEX idx_users_oauth ON users(oauth_provider, oauth_subject);
@@ -37,7 +37,7 @@ CREATE TABLE sections (
     name         TEXT NOT NULL,
     UNIQUE(tenant_id, name),
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-) STRICT, WITHOUT ROWID;
+) WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
 -- 4. TAGS
@@ -49,7 +49,7 @@ CREATE TABLE tags (
     scope        TEXT NOT NULL CHECK(scope IN ('agent', 'endpoint', 'global')) DEFAULT 'global',
     UNIQUE(section_id, name),
     FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
-) STRICT, WITHOUT ROWID;
+) WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
 -- 5. AGENT_CLAIMS (Temporary holding table for unclaimed agents)
@@ -59,17 +59,17 @@ CREATE TABLE agent_claims (
     claim_token_hash        TEXT NOT NULL,         -- SHA-256 hash of claim token
     hostname                TEXT NOT NULL,         -- Agent's system hostname (used as initial name)
     agent_version           TEXT NOT NULL,         -- Agent software version
-    claim_token_expires_at  TEXT NOT NULL,         -- When claim token expires
-    last_seen_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-    created_at              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    claim_token_expires_at  DATETIME NOT NULL,         -- When claim token expires
+    last_seen_at            DATETIME NOT NULL DEFAULT (datetime('now')),
+    created_at              DATETIME NOT NULL DEFAULT (datetime('now')),
     
     -- Claim status
-    claimed_at              TEXT,                  -- When user claimed it
+    claimed_at              DATETIME,                  -- When user claimed it
     claimed_by_user_id      TEXT,                  -- Who claimed it
     api_key_plaintext       TEXT,                  -- Temporary storage for API key (cleared after delivery)
     api_key_delivered       INT NOT NULL DEFAULT 0, -- Boolean: has agent received API key?
     FOREIGN KEY (claimed_by_user_id) REFERENCES users(id) ON DELETE SET NULL
-) STRICT, WITHOUT ROWID;
+) WITHOUT ROWID;
 
 -- Index for cleanup of expired claims
 CREATE INDEX idx_agent_claims_expires ON agent_claims(claim_token_expires_at);
@@ -86,18 +86,18 @@ CREATE TABLE agents (
     name           TEXT NOT NULL,
     api_key_hash   TEXT NOT NULL,
     base_config    TEXT NOT NULL DEFAULT '{}', -- JSON Blob
-    version        INT NOT NULL DEFAULT 1,
+    config_version INT NOT NULL DEFAULT 1,     -- Incremented on any config change to trigger agent updates
     
     -- Agent metadata
-    agent_version  TEXT,                  -- Agent software version
+    agent_version  TEXT,                        -- Agent software version
     
     -- Lifecycle tracking
-    last_seen_at   TEXT,                  -- Last heartbeat/config fetch
-    updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-    created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),  -- When claimed
+    last_seen_at   DATETIME,                    -- Last heartbeat/config fetch
+    updated_at     DATETIME NOT NULL DEFAULT (datetime('now')),
+    created_at     DATETIME NOT NULL DEFAULT (datetime('now')),  -- When claimed
     
     FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
-) STRICT, WITHOUT ROWID;
+) WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
 -- 7. AGENT_TAGS (Junction)
@@ -108,7 +108,7 @@ CREATE TABLE agent_tags (
     PRIMARY KEY (agent_id, tag_id),
     FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-) STRICT, WITHOUT ROWID;
+) WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
 -- 8. ENDPOINTS
@@ -119,10 +119,10 @@ CREATE TABLE endpoints (
     address     TEXT NOT NULL,
     port        INT,
     enabled     INT NOT NULL DEFAULT 1,
-    updated_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
-    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S', 'now')),
+    updated_at  DATETIME NOT NULL DEFAULT (datetime('now')),
+    created_at  DATETIME NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
-) STRICT, WITHOUT ROWID;
+) WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
 -- 9. ENDPOINT_TAGS (Junction)
@@ -133,7 +133,7 @@ CREATE TABLE endpoint_tags (
     PRIMARY KEY (endpoint_id, tag_id),
     FOREIGN KEY (endpoint_id) REFERENCES endpoints(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-) STRICT, WITHOUT ROWID;
+) WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
 -- TRIGGERS: AUTOMATIC VERSIONING & UPDATED_AT RIPPLES
@@ -146,8 +146,8 @@ AFTER UPDATE OF name, section_id, base_config, api_key_hash, agent_version ON ag
 FOR EACH ROW
 BEGIN
     UPDATE agents 
-    SET version = OLD.version + 1,
-        updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
+    SET config_version = OLD.config_version + 1,
+        updated_at = datetime('now')
     WHERE id = OLD.id;
 END;
 
@@ -158,12 +158,12 @@ AFTER UPDATE OF address, enabled ON endpoints
 FOR EACH ROW
 BEGIN
     UPDATE endpoints 
-    SET updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
+    SET updated_at = datetime('now')
     WHERE id = OLD.id;
 
     UPDATE agents 
-    SET version = version + 1,
-        updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
+    SET config_version = config_version + 1,
+        updated_at = datetime('now')
     WHERE id = OLD.agent_id;
 END;
 
@@ -174,8 +174,8 @@ AFTER INSERT ON endpoints
 FOR EACH ROW
 BEGIN
     UPDATE agents 
-    SET version = version + 1,
-        updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
+    SET config_version = config_version + 1,
+        updated_at = datetime('now')
     WHERE id = NEW.agent_id;
 END;
 
@@ -187,21 +187,21 @@ FOR EACH ROW
 BEGIN
     -- Ripple to Agents (Agent/Global scope)
     UPDATE agents 
-    SET version = version + 1,
-        updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
+    SET config_version = config_version + 1,
+        updated_at = datetime('now')
     WHERE id IN (SELECT agent_id FROM agent_tags WHERE tag_id = OLD.id)
     AND (OLD.scope = 'agent' OR OLD.scope = 'global');
 
     -- Ripple to Endpoints (Endpoint/Global scope)
     UPDATE endpoints 
-    SET updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
+    SET updated_at = datetime('now')
     WHERE id IN (SELECT endpoint_id FROM endpoint_tags WHERE tag_id = OLD.id)
     AND (OLD.scope = 'endpoint' OR OLD.scope = 'global');
 
     -- Ripple to parent Agents of those Endpoints
     UPDATE agents 
-    SET version = version + 1,
-        updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
+    SET config_version = config_version + 1,
+        updated_at = datetime('now')
     WHERE id IN (
         SELECT agent_id FROM endpoints 
         WHERE id IN (SELECT endpoint_id FROM endpoint_tags WHERE tag_id = OLD.id)
@@ -215,8 +215,8 @@ FOR EACH ROW
 WHEN (SELECT scope FROM tags WHERE id = NEW.tag_id) IN ('agent', 'global')
 BEGIN
     UPDATE agents 
-    SET version = version + 1,
-        updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
+    SET config_version = config_version + 1,
+        updated_at = datetime('now')
     WHERE id = NEW.agent_id;
 END;
 
@@ -226,8 +226,8 @@ AFTER INSERT ON endpoint_tags
 FOR EACH ROW
 WHEN (SELECT scope FROM tags WHERE id = NEW.tag_id) IN ('endpoint', 'global')
 BEGIN
-    UPDATE endpoints SET updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now') WHERE id = NEW.endpoint_id;
-    UPDATE agents SET version = version + 1, updated_at = strftime('%Y-%m-%d %H:%M:%S', 'now')
+    UPDATE endpoints SET updated_at = datetime('now') WHERE id = NEW.endpoint_id;
+    UPDATE agents SET config_version = config_version + 1, updated_at = datetime('now')
     WHERE id = (SELECT agent_id FROM endpoints WHERE id = NEW.endpoint_id);
 END;
 
@@ -238,5 +238,5 @@ END;
 -- Note: Periodic cleanup of expired/delivered claims should be done by a background job
 -- Query for cleanup:
 -- DELETE FROM agent_claims 
--- WHERE claim_token_expires_at < strftime('%Y-%m-%d %H:%M:%S', 'now')
+-- WHERE claim_token_expires_at < datetime('now')
 --    OR (claimed_at IS NOT NULL AND api_key_delivered = 1);

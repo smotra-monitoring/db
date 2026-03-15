@@ -139,6 +139,17 @@ CREATE TABLE endpoint_tags (
 -- TRIGGERS: AUTOMATIC VERSIONING & UPDATED_AT RIPPLES
 --------------------------------------------------------------------------------
 
+-- Trigger 0: User Profile Update
+-- Updates timestamp when user profile data changes.
+CREATE TRIGGER trg_users_updated
+AFTER UPDATE OF tenant_id, oauth_provider, oauth_subject, display_name ON users
+FOR EACH ROW
+BEGIN
+    UPDATE users 
+    SET updated_at = datetime('now')
+    WHERE id = OLD.id;
+END;
+
 -- Trigger 1: Direct Agent Update
 -- Bumps version when core agent data changes.
 CREATE TRIGGER trg_agents_updated

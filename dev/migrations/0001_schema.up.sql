@@ -55,11 +55,12 @@ CREATE TABLE tags (
 -- 5. AGENT_CLAIMS (Temporary holding table for unclaimed agents)
 --------------------------------------------------------------------------------
 CREATE TABLE agent_claims (
-    id                      TEXT PRIMARY KEY,      -- Agent's self-generated UUIDv7
-    claim_token_hash        TEXT NOT NULL,         -- SHA-256 hash of claim token
-    hostname                TEXT NOT NULL,         -- Agent's system hostname (used as initial name)
-    agent_version           TEXT NOT NULL,         -- Agent software version
-    claim_token_expires_at  DATETIME NOT NULL,         -- When claim token expires
+    id                      TEXT PRIMARY KEY,           -- Agent's self-generated UUIDv7
+    claim_token_hash        TEXT NOT NULL,              -- SHA-256 hash of claim token
+    hostname                TEXT NOT NULL,              -- Agent's system hostname (used as initial name)
+    agent_version           TEXT NOT NULL,              -- Agent software version
+    claim_token_expires_at  DATETIME NOT NULL,          -- When claim token expires
+    poll_count              INTEGER NOT NULL DEFAULT 0, -- Number of times agent has polled for claim status (for backoff)
     last_seen_at            DATETIME NOT NULL DEFAULT (datetime('now')),
     created_at              DATETIME NOT NULL DEFAULT (datetime('now')),
     
@@ -76,6 +77,9 @@ CREATE INDEX idx_agent_claims_expires ON agent_claims(claim_token_expires_at);
 
 -- Index for checking delivery status
 CREATE INDEX idx_agent_claims_delivery ON agent_claims(claimed_at, api_key_delivered);
+
+-- Create index for poll count queries (optional, but helpful for analytics)
+CREATE INDEX idx_agent_claims_poll_count ON agent_claims(poll_count);
 
 --------------------------------------------------------------------------------
 -- 6. AGENTS (Production table - only claimed agents)

@@ -57,3 +57,8 @@ INSERT INTO endpoints (id, agent_id, address, enabled) VALUES
 INSERT INTO endpoint_tags (endpoint_id, tag_id) VALUES 
 ('018d1234-5678-7002-8000-000000000001', 'tag-dns'),
 ('018d1234-5678-7002-8000-000000000002', 'tag-dns');
+
+INSERT INTO users (id, tenant_id, oauth_provider, oauth_subject, display_name) VALUES
+('usr-0001', 'tnt-pepsi', 'google', 'google-subject-123', 'Alice Smith'),
+('usr-0002', 'tnt-pepsi', 'github', 'github-subject-456', 'Bob Johnson'),
+('usr-0003', 'tnt-coke',  'google', 'google-subject-789', 'Charlie Brown');

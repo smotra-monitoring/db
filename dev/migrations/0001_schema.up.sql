@@ -128,6 +128,8 @@ CREATE TABLE endpoints (
     FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
+CREATE INDEX idx_endpoints_agent_address ON endpoints(agent_id, address);
+
 --------------------------------------------------------------------------------
 -- 9. ENDPOINT_TAGS (Junction)
 --------------------------------------------------------------------------------

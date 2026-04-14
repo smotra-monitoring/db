@@ -11,15 +11,13 @@
 CREATE TABLE check_results (
     id           TEXT PRIMARY KEY,    -- UUIDv7 from agent; used for deduplication
     agent_id     TEXT NOT NULL,
-    endpoint_id  TEXT,               -- Resolved from endpoints table by address; nullable
+    endpoint_id  TEXT NOT NULL,       -- FK to endpoints; validated on submission
     check_type   TEXT NOT NULL CHECK(check_type IN ('ping','traceroute','tcpconnect','udpconnect','httpget','plugin')),
-    target_address TEXT NOT NULL,
-    target_port  INT,                -- nullable
     success      INT NOT NULL DEFAULT 0,
     checked_at   DATETIME NOT NULL,  -- Agent clock (when the check was executed)
     received_at  DATETIME NOT NULL DEFAULT (datetime('now')), -- Server receipt time
     FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
-    FOREIGN KEY (endpoint_id) REFERENCES endpoints(id) ON DELETE SET NULL
+    FOREIGN KEY (endpoint_id) REFERENCES endpoints(id) ON DELETE RESTRICT
 ) WITHOUT ROWID;
 
 -- For time-range queries per agent

@@ -30,7 +30,7 @@ CREATE INDEX idx_check_results_success_checked ON check_results(success, checked
 --------------------------------------------------------------------------------
 -- PING_CHECK_RESULTS
 --------------------------------------------------------------------------------
-CREATE TABLE ping_check_results (
+CREATE TABLE check_results_ping (
     check_id             TEXT PRIMARY KEY,
     resolved_ip          TEXT NOT NULL,
     successes            INT NOT NULL DEFAULT 0,
@@ -44,7 +44,7 @@ CREATE TABLE ping_check_results (
 --------------------------------------------------------------------------------
 -- HTTP_GET_CHECK_RESULTS
 --------------------------------------------------------------------------------
-CREATE TABLE http_get_check_results (
+CREATE TABLE check_results_http_get (
     check_id            TEXT PRIMARY KEY,
     status_code         INT NOT NULL,
     response_time_ms    REAL,
@@ -56,7 +56,7 @@ CREATE TABLE http_get_check_results (
 --------------------------------------------------------------------------------
 -- TCP_CONNECT_CHECK_RESULTS
 --------------------------------------------------------------------------------
-CREATE TABLE tcp_connect_check_results (
+CREATE TABLE check_results_tcp_connect (
     check_id       TEXT PRIMARY KEY,
     resolved_ip    TEXT NOT NULL,
     connected      INT NOT NULL DEFAULT 0,
@@ -68,7 +68,7 @@ CREATE TABLE tcp_connect_check_results (
 --------------------------------------------------------------------------------
 -- UDP_CONNECT_CHECK_RESULTS
 --------------------------------------------------------------------------------
-CREATE TABLE udp_connect_check_results (
+CREATE TABLE check_results_udp_connect (
     check_id         TEXT PRIMARY KEY,
     resolved_ip      TEXT NOT NULL,
     probe_successful INT NOT NULL DEFAULT 0,
@@ -81,7 +81,7 @@ CREATE TABLE udp_connect_check_results (
 -- TRACEROUTE_CHECK_RESULTS
 -- Hops are stored in a separate traceroute_hops table for hop-level analytics.
 --------------------------------------------------------------------------------
-CREATE TABLE traceroute_check_results (
+CREATE TABLE check_results_traceroute (
     check_id       TEXT PRIMARY KEY,
     target_reached INT NOT NULL DEFAULT 0,
     total_time_ms  REAL,
@@ -93,26 +93,26 @@ CREATE TABLE traceroute_check_results (
 -- TRACEROUTE_HOPS — Separate table enabling per-hop SQL analytics
 -- (e.g. latency at a specific hop number across all paths, path comparison)
 --------------------------------------------------------------------------------
-CREATE TABLE traceroute_hops (
+CREATE TABLE check_results_traceroute_hops (
     id              TEXT PRIMARY KEY,  -- UUIDv7 server-generated
     check_id        TEXT NOT NULL,
     hop             INT NOT NULL,      -- hop number / TTL
     address         TEXT,              -- nullable (timed-out hops have no address)
     hostname        TEXT,              -- nullable
-    response_time_ms REAL,             -- nullable
+    success_latencies_json TEXT NOT NULL DEFAULT '[]',
     FOREIGN KEY (check_id) REFERENCES check_results(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
--- Enables: SELECT * FROM traceroute_hops WHERE check_id = ? ORDER BY hop
-CREATE INDEX idx_traceroute_hops_check ON traceroute_hops(check_id, hop);
+-- Enables: SELECT * FROM check_results_traceroute_hops WHERE check_id = ? ORDER BY hop
+CREATE INDEX idx_traceroute_hops_check ON check_results_traceroute_hops(check_id, hop);
 
--- Enables: SELECT avg(response_time_ms) FROM traceroute_hops WHERE hop = 5
-CREATE INDEX idx_traceroute_hops_hop ON traceroute_hops(hop);
+-- Enables: SELECT avg(response_time_ms) FROM check_results_traceroute_hops WHERE hop = 5
+CREATE INDEX idx_traceroute_hops_hop ON check_results_traceroute_hops(hop);
 
 --------------------------------------------------------------------------------
 -- PLUGIN_CHECK_RESULTS
 --------------------------------------------------------------------------------
-CREATE TABLE plugin_check_results (
+CREATE TABLE check_results_plugin (
     check_id        TEXT PRIMARY KEY,
     plugin_name     TEXT NOT NULL,
     plugin_version  TEXT NOT NULL,
@@ -127,4 +127,4 @@ CREATE TABLE plugin_check_results (
 -- Additional index on endpoints for efficient address lookup when resolving
 -- endpoint_id from an agent_id + target_address pair during result submission.
 --------------------------------------------------------------------------------
-CREATE INDEX IF NOT EXISTS idx_endpoints_agent_address ON endpoints(agent_id, address);
+CREATE INDEX IF NOT EXISTS idx_endpoints_agent_resolved_ip ON endpoints(agent_id, resolved_ip);

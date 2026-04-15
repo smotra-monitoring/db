@@ -97,7 +97,7 @@ CREATE TABLE check_results_traceroute_hops (
     id              TEXT PRIMARY KEY,  -- UUIDv7 server-generated
     check_id        TEXT NOT NULL,
     hop             INT NOT NULL,      -- hop number / TTL
-    address         TEXT,              -- nullable (timed-out hops have no address)
+    resolved_ip     TEXT,              -- nullable (timed-out hops have no address)
     hostname        TEXT,              -- nullable
     success_latencies_json TEXT NOT NULL DEFAULT '[]',
     FOREIGN KEY (check_id) REFERENCES check_results(id) ON DELETE CASCADE

@@ -37,7 +37,7 @@ CREATE TABLE check_results_ping (
     failures             INT NOT NULL DEFAULT 0,
     avg_response_time_ms REAL,
     success_latencies_json TEXT NOT NULL DEFAULT '[]', -- JSON array of float64
-    errors_json          TEXT,                         -- nullable JSON array of string
+    errors_json          TEXT,                         -- nullable JSON object: {"errors": [...]}
     FOREIGN KEY (check_id) REFERENCES check_results(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
@@ -49,7 +49,7 @@ CREATE TABLE check_results_http_get (
     status_code         INT NOT NULL,
     response_time_ms    REAL,
     response_size_bytes INT,
-    error               TEXT,
+    errors_json         TEXT,                         -- nullable JSON object: {"errors": [...]}
     FOREIGN KEY (check_id) REFERENCES check_results(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
@@ -61,7 +61,7 @@ CREATE TABLE check_results_tcp_connect (
     resolved_ip    TEXT NOT NULL,
     connected      INT NOT NULL DEFAULT 0,
     connect_time_ms REAL,
-    error          TEXT,
+    errors_json    TEXT,                         -- nullable JSON object: {"errors": [...]}
     FOREIGN KEY (check_id) REFERENCES check_results(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
@@ -73,7 +73,7 @@ CREATE TABLE check_results_udp_connect (
     resolved_ip      TEXT NOT NULL,
     probe_successful INT NOT NULL DEFAULT 0,
     response_time_ms REAL,
-    error            TEXT,
+    errors_json      TEXT,                         -- nullable JSON object: {"errors": [...]}
     FOREIGN KEY (check_id) REFERENCES check_results(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
@@ -85,7 +85,7 @@ CREATE TABLE check_results_traceroute (
     check_id       TEXT PRIMARY KEY,
     target_reached INT NOT NULL DEFAULT 0,
     total_time_ms  REAL,
-    errors_json    TEXT, -- nullable JSON array of string
+    errors_json    TEXT, -- nullable JSON object: {"errors": [...]}
     FOREIGN KEY (check_id) REFERENCES check_results(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
@@ -118,7 +118,7 @@ CREATE TABLE check_results_plugin (
     plugin_version  TEXT NOT NULL,
     success         INT NOT NULL DEFAULT 0,
     response_time_ms REAL,
-    error           TEXT,
+    errors_json     TEXT,                         -- nullable JSON object: {"errors": [...]}
     data_json       TEXT NOT NULL DEFAULT '{}', -- JSON map[string]string
     FOREIGN KEY (check_id) REFERENCES check_results(id) ON DELETE CASCADE
 ) WITHOUT ROWID;

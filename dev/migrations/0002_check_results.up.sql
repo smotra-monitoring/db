@@ -127,4 +127,4 @@ CREATE TABLE check_results_plugin (
 -- Additional index on endpoints for efficient address lookup when resolving
 -- endpoint_id from an agent_id + target_address pair during result submission.
 --------------------------------------------------------------------------------
-CREATE INDEX IF NOT EXISTS idx_endpoints_agent_resolved_ip ON endpoints(agent_id, resolved_ip);
+CREATE INDEX IF NOT EXISTS idx_endpoints_agent_address ON endpoints(agent_id, address);

@@ -35,7 +35,6 @@ CREATE TABLE check_results_ping (
     resolved_ip          TEXT NOT NULL,
     successes            INT NOT NULL DEFAULT 0,
     failures             INT NOT NULL DEFAULT 0,
-    avg_response_time_ms REAL,
     success_latencies_json TEXT NOT NULL DEFAULT '[]', -- JSON array of float64
     errors_json          TEXT,                         -- nullable JSON object: {"errors": [...]}
     FOREIGN KEY (check_id) REFERENCES check_results(id) ON DELETE CASCADE
@@ -84,7 +83,6 @@ CREATE TABLE check_results_udp_connect (
 CREATE TABLE check_results_traceroute (
     check_id       TEXT PRIMARY KEY,
     target_reached INT NOT NULL DEFAULT 0,
-    total_time_ms  REAL,
     errors_json    TEXT, -- nullable JSON object: {"errors": [...]}
     FOREIGN KEY (check_id) REFERENCES check_results(id) ON DELETE CASCADE
 ) WITHOUT ROWID;

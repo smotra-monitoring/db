@@ -120,8 +120,7 @@ CREATE TABLE agent_tags (
 CREATE TABLE endpoints (
     id          TEXT PRIMARY KEY,
     agent_id    TEXT NOT NULL,
-    hostname    TEXT NOT NULL,
-    resolved_ip TEXT NOT NULL,
+    address     TEXT NOT NULL,
     port        INT,
     enabled     INT NOT NULL DEFAULT 1,
     updated_at  DATETIME NOT NULL DEFAULT (datetime('now')),
@@ -129,7 +128,7 @@ CREATE TABLE endpoints (
     FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
-CREATE INDEX idx_endpoints_agent_resolved_ip ON endpoints(agent_id, resolved_ip);
+CREATE INDEX idx_endpoints_agent_address ON endpoints(agent_id, address);
 
 --------------------------------------------------------------------------------
 -- 9. ENDPOINT_TAGS (Junction)

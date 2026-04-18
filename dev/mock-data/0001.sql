@@ -49,9 +49,9 @@ INSERT INTO agent_tags (agent_id, tag_id) VALUES
 --------------------------------------------------------------------------------
 -- 5. STATIC ENDPOINTS (Agent-Specific)
 --------------------------------------------------------------------------------
-INSERT INTO endpoints (id, agent_id, hostname, resolved_ip, enabled) VALUES 
-('018d1234-5678-7002-8000-000000000001', '018d1234-5678-7001-8000-000000000001', 'dns.google', '8.8.8.8', 1),
-('018d1234-5678-7002-8000-000000000002', '018d1234-5678-7001-8000-000000000001', 'one.one.one.one', '1.1.1.1', 1);
+INSERT INTO endpoints (id, agent_id, address, enabled) VALUES 
+('018d1234-5678-7002-8000-000000000001', '018d1234-5678-7001-8000-000000000001', '8.8.8.8', 1),
+('018d1234-5678-7002-8000-000000000002', '018d1234-5678-7001-8000-000000000001', '1.1.1.1', 1);
 
 -- Tag the static endpoints
 INSERT INTO endpoint_tags (endpoint_id, tag_id) VALUES 

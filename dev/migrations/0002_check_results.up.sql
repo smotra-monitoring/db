@@ -120,9 +120,3 @@ CREATE TABLE check_results_plugin (
     data_json       TEXT NOT NULL DEFAULT '{}', -- JSON map[string]string
     FOREIGN KEY (check_id) REFERENCES check_results(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
-
---------------------------------------------------------------------------------
--- Additional index on endpoints for efficient address lookup when resolving
--- endpoint_id from an agent_id + target_address pair during result submission.
---------------------------------------------------------------------------------
-CREATE INDEX IF NOT EXISTS idx_endpoints_agent_address ON endpoints(agent_id, address);

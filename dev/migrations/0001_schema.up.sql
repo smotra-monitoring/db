@@ -116,19 +116,25 @@ CREATE TABLE agent_tags (
 
 --------------------------------------------------------------------------------
 -- 8. ENDPOINTS
+-- Endpoints are section-scoped, not agent-scoped.
+-- is_agent=1 means this endpoint represents one of our own agents.
+-- linked_agent_id optionally links back to that agent row.
 --------------------------------------------------------------------------------
 CREATE TABLE endpoints (
-    id          TEXT PRIMARY KEY,
-    agent_id    TEXT NOT NULL,
-    address     TEXT NOT NULL,
-    port        INT,
-    enabled     INT NOT NULL DEFAULT 1,
-    updated_at  DATETIME NOT NULL DEFAULT (datetime('now')),
-    created_at  DATETIME NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
+    id               TEXT PRIMARY KEY,
+    section_id       TEXT NOT NULL,
+    address          TEXT NOT NULL,
+    port             INT,
+    enabled          INT NOT NULL DEFAULT 1,
+    is_agent         INT NOT NULL DEFAULT 0,       -- 1 if this endpoint represents an agent
+    linked_agent_id  TEXT,                         -- FK to agents.id (nullable)
+    updated_at       DATETIME NOT NULL DEFAULT (datetime('now')),
+    created_at       DATETIME NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE,
+    FOREIGN KEY (linked_agent_id) REFERENCES agents(id) ON DELETE SET NULL
 ) WITHOUT ROWID;
 
-CREATE INDEX idx_endpoints_agent_address ON endpoints(agent_id, address);
+CREATE INDEX idx_endpoints_section_address ON endpoints(section_id, address);
 
 --------------------------------------------------------------------------------
 -- 9. ENDPOINT_TAGS (Junction)
@@ -169,7 +175,7 @@ BEGIN
 END;
 
 -- Trigger 2: Direct Endpoint Update
--- Updates endpoint timestamp and bumps parent agent version.
+-- Updates endpoint timestamp and bumps config_version for all agents in the same section.
 CREATE TRIGGER trg_endpoints_updated
 AFTER UPDATE OF address, enabled ON endpoints
 FOR EACH ROW
@@ -181,11 +187,11 @@ BEGIN
     UPDATE agents 
     SET config_version = config_version + 1,
         updated_at = datetime('now')
-    WHERE id = OLD.agent_id;
+    WHERE section_id = OLD.section_id;
 END;
 
 -- Trigger 3: New Endpoint Insert
--- Bumps parent agent version when a new target is added.
+-- Bumps config_version for all agents in the section when a new endpoint is added.
 CREATE TRIGGER trg_endpoints_inserted
 AFTER INSERT ON endpoints
 FOR EACH ROW
@@ -193,11 +199,24 @@ BEGIN
     UPDATE agents 
     SET config_version = config_version + 1,
         updated_at = datetime('now')
-    WHERE id = NEW.agent_id;
+    WHERE section_id = NEW.section_id;
+END;
+
+-- Trigger 3b: Endpoint Delete
+-- Bumps config_version for all agents in the section so they stop trying to
+-- submit results for the now-removed endpoint.
+CREATE TRIGGER trg_endpoints_deleted
+AFTER DELETE ON endpoints
+FOR EACH ROW
+BEGIN
+    UPDATE agents
+    SET config_version = config_version + 1,
+        updated_at = datetime('now')
+    WHERE section_id = OLD.section_id;
 END;
 
 -- Trigger 4: Tag Name Change (The Big Ripple)
--- Updates all affected endpoints and bumps versions for all affected agents.
+-- Updates all affected endpoints and bumps config_version for all affected agents.
 CREATE TRIGGER trg_tag_name_updated
 AFTER UPDATE OF name ON tags
 FOR EACH ROW
@@ -215,12 +234,12 @@ BEGIN
     WHERE id IN (SELECT endpoint_id FROM endpoint_tags WHERE tag_id = OLD.id)
     AND (OLD.scope = 'endpoint' OR OLD.scope = 'global');
 
-    -- Ripple to parent Agents of those Endpoints
+    -- Ripple to all Agents in sections that contain affected endpoints
     UPDATE agents 
     SET config_version = config_version + 1,
         updated_at = datetime('now')
-    WHERE id IN (
-        SELECT agent_id FROM endpoints 
+    WHERE section_id IN (
+        SELECT section_id FROM endpoints 
         WHERE id IN (SELECT endpoint_id FROM endpoint_tags WHERE tag_id = OLD.id)
     ) AND (OLD.scope = 'endpoint' OR OLD.scope = 'global');
 END;
@@ -237,7 +256,7 @@ BEGIN
     WHERE id = NEW.agent_id;
 END;
 
--- Trigger 6: Endpoint Tag Linkage Change
+-- Trigger 6: Endpoint Tag Linkage Change (INSERT)
 CREATE TRIGGER trg_endpoint_tags_changed
 AFTER INSERT ON endpoint_tags
 FOR EACH ROW
@@ -245,7 +264,18 @@ WHEN (SELECT scope FROM tags WHERE id = NEW.tag_id) IN ('endpoint', 'global')
 BEGIN
     UPDATE endpoints SET updated_at = datetime('now') WHERE id = NEW.endpoint_id;
     UPDATE agents SET config_version = config_version + 1, updated_at = datetime('now')
-    WHERE id = (SELECT agent_id FROM endpoints WHERE id = NEW.endpoint_id);
+    WHERE section_id = (SELECT section_id FROM endpoints WHERE id = NEW.endpoint_id);
+END;
+
+-- Trigger 6b: Endpoint Tag Linkage Change (DELETE)
+-- Removing a tag from an endpoint changes topology resolution — affected agents
+-- must re-fetch their config to get the updated endpoint list.
+CREATE TRIGGER trg_endpoint_tags_deleted
+AFTER DELETE ON endpoint_tags
+FOR EACH ROW
+BEGIN
+    UPDATE agents SET config_version = config_version + 1, updated_at = datetime('now')
+    WHERE section_id = (SELECT section_id FROM endpoints WHERE id = OLD.endpoint_id);
 END;
 
 --------------------------------------------------------------------------------

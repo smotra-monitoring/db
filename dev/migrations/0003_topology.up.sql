@@ -28,13 +28,13 @@ CREATE INDEX idx_topologies_section ON topologies(section_id);
 --   'agent'    — tags on this side identify the agents (sources / monitors)
 --   'endpoint' — tags on this side identify the endpoints (targets / monitored)
 --
--- PRIMARY KEY includes role so the same tag can appear as both 'agent' and
--- 'endpoint' within one topology (enabling full-mesh with a single shared tag).
+-- PRIMARY KEY includes role so the same tag can appear as both 'monitor' and
+-- 'target' within one topology (enabling full-mesh with a single shared tag).
 --------------------------------------------------------------------------------
 CREATE TABLE topology_members (
     topology_id  TEXT NOT NULL,
     tag_id       TEXT NOT NULL,
-    role         TEXT NOT NULL CHECK(role IN ('agent', 'endpoint')),
+    role         TEXT NOT NULL CHECK(role IN ('monitor', 'target')),
     PRIMARY KEY (topology_id, tag_id, role),
     FOREIGN KEY (topology_id) REFERENCES topologies(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE

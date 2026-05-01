@@ -59,6 +59,7 @@ CREATE TABLE agent_claims (
     claim_token_hash        TEXT NOT NULL,              -- SHA-256 hash of claim token
     hostname                TEXT NOT NULL,              -- Agent's system hostname (used as initial name)
     agent_version           TEXT NOT NULL,              -- Agent software version
+    ip_addresses_json        TEXT NOT NULL DEFAULT '[]', -- JSON array of AgentNetworkInterface objects
     claim_token_expires_at  DATETIME NOT NULL,          -- When claim token expires
     poll_count              INTEGER NOT NULL DEFAULT 0, -- Number of times agent has polled for claim status (for backoff)
     last_seen_at            DATETIME NOT NULL DEFAULT (datetime('now')),
@@ -94,6 +95,7 @@ CREATE TABLE agents (
     
     -- Agent metadata
     agent_version  TEXT,                        -- Agent software version
+    ip_addresses_json   TEXT NOT NULL DEFAULT '[]',  -- JSON array of AgentNetworkInterface objects
     
     -- Lifecycle tracking
     last_seen_at   DATETIME,                    -- Last heartbeat/config fetch

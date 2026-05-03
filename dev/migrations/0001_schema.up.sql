@@ -86,21 +86,22 @@ CREATE INDEX idx_agent_claims_poll_count ON agent_claims(poll_count);
 -- 6. AGENTS (Production table - only claimed agents)
 --------------------------------------------------------------------------------
 CREATE TABLE agents (
-    id             TEXT PRIMARY KEY,
-    section_id     TEXT NOT NULL,
-    name           TEXT NOT NULL,
-    api_key_hash   TEXT NOT NULL,
-    base_config    TEXT NOT NULL DEFAULT '{}', -- JSON Blob
-    config_version INT NOT NULL DEFAULT 1,     -- Incremented on any config change to trigger agent updates
+    id                  TEXT PRIMARY KEY,
+    section_id          TEXT NOT NULL,
+    name                TEXT NOT NULL,
+    api_key_hash        TEXT NOT NULL,
+    base_config         TEXT NOT NULL DEFAULT '{}', -- JSON Blob
+    config_version      INT NOT NULL DEFAULT 1,     -- Incremented on any config change to trigger agent updates
     
     -- Agent metadata
-    agent_version  TEXT,                        -- Agent software version
+    agent_version       TEXT,                        -- Agent software version
     ip_addresses_json   TEXT NOT NULL DEFAULT '[]',  -- JSON array of AgentNetworkInterface objects
     
     -- Lifecycle tracking
-    last_seen_at   DATETIME,                    -- Last heartbeat/config fetch
-    updated_at     DATETIME NOT NULL DEFAULT (datetime('now')),
-    created_at     DATETIME NOT NULL DEFAULT (datetime('now')),  -- When claimed
+    last_seen_at              DATETIME,           -- Last heartbeat/config fetch
+    last_result_submitted_at  DATETIME,           -- Last time agent submitted a check result
+    updated_at                DATETIME NOT NULL DEFAULT (datetime('now')),
+    created_at                DATETIME NOT NULL DEFAULT (datetime('now')),  -- When claimed
     
     FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
 ) WITHOUT ROWID;

@@ -5,7 +5,7 @@ PRAGMA foreign_keys = ON;
 --------------------------------------------------------------------------------
 CREATE TABLE tenants (
     id           TEXT PRIMARY KEY,
-    name         TEXT NOT NULL,
+    name         TEXT NOT NULL UNIQUE,
     created_at   DATETIME NOT NULL DEFAULT (datetime('now'))
 ) WITHOUT ROWID;
 
@@ -18,7 +18,9 @@ CREATE TABLE users (
     oauth_provider  TEXT NOT NULL,         -- e.g., 'github', 'google', 'microsoft'
     oauth_subject   TEXT NOT NULL,         -- Unique ID from OAuth provider (sub claim)
     display_name    TEXT NOT NULL,         -- User's display name
-    last_login_at   DATETIME,                  -- Last successful login
+    email           TEXT,                  -- User's email address from OAuth provider
+    avatar_url      TEXT,                  -- User's avatar/profile picture URL
+    last_login_at   DATETIME,              -- Last successful login
     created_at      DATETIME NOT NULL DEFAULT (datetime('now')),
     updated_at      DATETIME NOT NULL DEFAULT (datetime('now')),
     UNIQUE(oauth_provider, oauth_subject),
@@ -157,7 +159,7 @@ CREATE TABLE endpoint_tags (
 -- Trigger 0: User Profile Update
 -- Updates timestamp when user profile data changes.
 CREATE TRIGGER trg_users_updated
-AFTER UPDATE OF tenant_id, oauth_provider, oauth_subject, display_name ON users
+AFTER UPDATE OF tenant_id, oauth_provider, oauth_subject, display_name, email, avatar_url ON users
 FOR EACH ROW
 BEGIN
     UPDATE users 

@@ -19,16 +19,16 @@ CREATE INDEX idx_pending_states_expires_at ON oauth2_pending_states(expires_at);
 --------------------------------------------------------------------------------
 -- 2. SESSIONS
 -- Long-lived server-managed sessions backed by an opaque token (SHA-256 stored).
--- expires_at is a sliding window (now + 7 days), extended on each transparent IDP refresh,
--- capped by absolute_expires_at (created_at + 90 days).
+-- sliding_expires_at is a sliding window (now + 7 days), extended on each transparent IDP refresh,
+-- capped by expires_at (created_at + 90 days, hard cap).
 --------------------------------------------------------------------------------
 CREATE TABLE sessions (
     id                          TEXT PRIMARY KEY,                           -- UUIDv7
     user_id                     TEXT NOT NULL,                              -- FK → users.id
     token_hash                  TEXT NOT NULL UNIQUE,                       -- SHA-256 of plaintext opaque token (plaintext never stored)
     created_at                  DATETIME NOT NULL DEFAULT (datetime('now')),
-    expires_at                  DATETIME NOT NULL,                          -- Sliding: now + 7 days, capped at absolute_expires_at
-    absolute_expires_at         DATETIME NOT NULL,                          -- Hard cap: created_at + 90 days, never updated
+    sliding_expires_at          DATETIME NOT NULL,                          -- Sliding: now + 7 days, capped at expires_at
+    expires_at                  DATETIME NOT NULL,                          -- Hard cap: created_at + 90 days, never updated
     last_used_at                DATETIME NOT NULL DEFAULT (datetime('now')),
     revoked                     INTEGER NOT NULL DEFAULT 0,                 -- Boolean: 1 = revoked
 
@@ -48,6 +48,7 @@ CREATE TABLE sessions (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
-CREATE INDEX idx_sessions_token_hash ON sessions(token_hash);
-CREATE INDEX idx_sessions_user_id    ON sessions(user_id);
-CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
+CREATE INDEX idx_sessions_token_hash         ON sessions(token_hash);
+CREATE INDEX idx_sessions_user_id            ON sessions(user_id);
+CREATE INDEX idx_sessions_sliding_expires_at ON sessions(sliding_expires_at);
+CREATE INDEX idx_sessions_expires_at         ON sessions(expires_at);

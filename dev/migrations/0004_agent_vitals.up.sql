@@ -15,7 +15,8 @@ CREATE TABLE agent_vitals (
     cpu_pct         REAL,                   -- CPU utilization 0.0–100.0; NULL if not reported
     mem_used_mb     REAL,                   -- Resident memory in MB; NULL if not reported
     mem_total_mb    REAL,                   -- Total physical memory in MB; NULL if not reported
-    system_uptime_secs INTEGER,              -- System uptime in seconds; NULL if not reported
+    system_uptime_secs INTEGER,             -- System uptime in seconds; NULL if not reported
+    agent_uptime_secs INTEGER,              -- Agent process uptime in seconds; NULL if not reported
     reported_at     DATETIME NOT NULL,      -- Agent clock when snapshot was taken
     received_at     DATETIME NOT NULL DEFAULT (datetime('now')), -- Server receipt time
     FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE

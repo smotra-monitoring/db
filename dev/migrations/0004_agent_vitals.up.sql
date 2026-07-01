@@ -18,7 +18,6 @@ CREATE TABLE agent_vitals (
     checks_performed INTEGER,
     checks_successful INTEGER,
     checks_failed    INTEGER,
-    last_report_at  DATETIME,
     failed_report_count INTEGER,
     server_connected INTEGER,   -- BOOLEAN stored as 0/1
     cache_capacity  INTEGER,
@@ -30,7 +29,7 @@ CREATE TABLE agent_vitals (
     agent_uptime_secs INTEGER,              -- Agent process uptime in seconds; NULL if not reported
     started_at      DATETIME,
     stopped_at      DATETIME,
-    reported_at     DATETIME NOT NULL,      -- Agent clock when snapshot was taken
+    reported_at     DATETIME NOT NULL DEFAULT (datetime('now')),      -- Agent clock when snapshot was taken
     received_at     DATETIME NOT NULL DEFAULT (datetime('now')), -- Server receipt time
     FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
 ) WITHOUT ROWID;

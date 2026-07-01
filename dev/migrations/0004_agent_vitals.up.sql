@@ -12,11 +12,24 @@
 CREATE TABLE agent_vitals (
     id              TEXT PRIMARY KEY,       -- Server-generated UUIDv7
     agent_id        TEXT NOT NULL,
+    agent_version   TEXT,
+    config_version  INTEGER,
+    is_running       INTEGER,   -- BOOLEAN stored as 0/1
+    checks_performed INTEGER,
+    checks_successful INTEGER,
+    checks_failed    INTEGER,
+    last_report_at  DATETIME,
+    failed_report_count INTEGER,
+    server_connected INTEGER,   -- BOOLEAN stored as 0/1
+    cache_capacity  INTEGER,
+    cache_len       INTEGER,
     cpu_pct         REAL,                   -- CPU utilization 0.0–100.0; NULL if not reported
     mem_used_mb     REAL,                   -- Resident memory in MB; NULL if not reported
     mem_total_mb    REAL,                   -- Total physical memory in MB; NULL if not reported
     system_uptime_secs INTEGER,             -- System uptime in seconds; NULL if not reported
     agent_uptime_secs INTEGER,              -- Agent process uptime in seconds; NULL if not reported
+    started_at      DATETIME,
+    stopped_at      DATETIME,
     reported_at     DATETIME NOT NULL,      -- Agent clock when snapshot was taken
     received_at     DATETIME NOT NULL DEFAULT (datetime('now')), -- Server receipt time
     FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE

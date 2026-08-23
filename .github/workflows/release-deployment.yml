@@ -1,0 +1,92 @@
+name: Build and deploy
+on:
+  release:
+    types: ['published']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '1.26'
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
+jobs:
+  validate-migrations:
+    runs-on: ubuntu-latest
+    services:
+      timescaledb:
+        image: timescale/timescaledb:latest-pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: smotra_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install golang-migrate
+        run: |
+          LATEST=$(curl -fsSL https://api.github.com/repos/golang-migrate/migrate/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
+          curl -fsSL "https://github.com/golang-migrate/migrate/releases/download/${LATEST}/migrate.linux-amd64.tar.gz" | tar xz
+          sudo mv migrate /usr/local/bin/migrate
+
+      - name: Apply prod migrations
+        run: |
+          migrate \
+            -path prod/migrations \
+            -database "postgres://postgres:postgres@localhost:5432/smotra_test?sslmode=disable" \
+            up
+
+  build:
+    needs: [validate-migrations]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./deployments/docker/Dockerfile
+          push: true
+          attests: type=sbom
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            ${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            BUILD_DATE=${{ github.event.repository.pushed_at }}
+            BUILD_REVISION=${{ github.sha }}
+            BUILD_VERSION=${{ github.ref_name }}
+            BUILD_ATTESTATION=true

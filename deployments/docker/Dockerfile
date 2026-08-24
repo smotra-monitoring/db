@@ -1,5 +1,5 @@
 # --- Stage 1: Get the official go-migrate binary ---
-FROM migrate/migrate:v4 AS migrate-bin
+FROM migrate/migrate:latest AS migrate-bin
 
 # --- Stage 2: Runtime Image ---
 FROM alpine:3.19
@@ -14,10 +14,10 @@ COPY --from=migrate-bin /usr/local/bin/migrate /usr/local/bin/migrate
 WORKDIR /app
 
 # Copy the local migrations folder into the container
-COPY ./migrations /app/migrations
+COPY ./prod/migrations /app/migrations
 
 # Copy the execution script
-COPY ./run-migrations.sh /app/run-migrations.sh
+COPY ./deployments/docker/run_migrations.sh /app/run-migrations.sh
 RUN chmod +x /app/run-migrations.sh
 
 # Run the script by default

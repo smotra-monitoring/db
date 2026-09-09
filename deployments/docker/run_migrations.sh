@@ -36,6 +36,7 @@ fi
 /usr/local/bin/migrate \
   -path /app/migrations \
   -database "postgresql://$DATABASE_USER:$DATABASE_PASSWORD@$DATABASE_HOST:$DATABASE_PORT/$DATABASE_NAME?sslmode=$DATABASE_SSLMODE" \
+  -verbose \
   up
 
 echo "Database migration completed successfully!"

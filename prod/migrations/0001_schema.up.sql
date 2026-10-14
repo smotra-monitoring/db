@@ -12,7 +12,7 @@ CREATE TABLE tenants (
 --------------------------------------------------------------------------------
 CREATE TABLE users (
     id              TEXT PRIMARY KEY,
-    tenant_id       TEXT NOT NULL,
+    workspace_id    TEXT NOT NULL,
     oauth_provider  TEXT NOT NULL,         -- e.g., 'github', 'google', 'microsoft'
     oauth_subject   TEXT NOT NULL,         -- Unique ID from OAuth provider (sub claim)
     display_name    TEXT NOT NULL,         -- User's display name
@@ -22,16 +22,16 @@ CREATE TABLE users (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(oauth_provider, oauth_subject),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
 
 -- Index for OAuth lookups
 CREATE INDEX idx_users_oauth ON users(oauth_provider, oauth_subject);
 
 --------------------------------------------------------------------------------
--- 3. SECTIONS
+-- 3. WORKSPACES
 --------------------------------------------------------------------------------
-CREATE TABLE sections (
+CREATE TABLE workspaces (
     id           TEXT PRIMARY KEY,
     tenant_id    TEXT NOT NULL,
     name         TEXT NOT NULL,
@@ -44,11 +44,11 @@ CREATE TABLE sections (
 --------------------------------------------------------------------------------
 CREATE TABLE tags (
     id           TEXT PRIMARY KEY,
-    section_id   TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
     name         TEXT NOT NULL,
     scope        TEXT NOT NULL CHECK(scope IN ('agent', 'endpoint', 'global')) DEFAULT 'global',
-    UNIQUE(section_id, name),
-    FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
+    UNIQUE(workspace_id, name),
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
 
 --------------------------------------------------------------------------------
@@ -82,7 +82,7 @@ CREATE INDEX idx_agent_claims_poll_count   ON agent_claims(poll_count);
 --------------------------------------------------------------------------------
 CREATE TABLE agents (
     id                  TEXT PRIMARY KEY,
-    section_id          TEXT NOT NULL,
+    workspace_id        TEXT NOT NULL,
     name                TEXT NOT NULL,
     api_key_hash        TEXT NOT NULL,
     base_config         JSONB NOT NULL DEFAULT '{}',
@@ -98,7 +98,7 @@ CREATE TABLE agents (
     updated_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 );
 
 --------------------------------------------------------------------------------
@@ -117,7 +117,7 @@ CREATE TABLE agent_tags (
 --------------------------------------------------------------------------------
 CREATE TABLE endpoints (
     id               TEXT PRIMARY KEY,
-    section_id       TEXT NOT NULL,
+    workspace_id     TEXT NOT NULL,
     address          TEXT NOT NULL,
     port             INTEGER,
     enabled          BOOLEAN NOT NULL DEFAULT TRUE,
@@ -125,11 +125,11 @@ CREATE TABLE endpoints (
     linked_agent_id  TEXT,                             -- FK to agents.id (nullable)
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    FOREIGN KEY (section_id)      REFERENCES sections(id) ON DELETE CASCADE,
+    FOREIGN KEY (workspace_id)    REFERENCES workspaces(id) ON DELETE CASCADE,
     FOREIGN KEY (linked_agent_id) REFERENCES agents(id)   ON DELETE SET NULL
 );
 
-CREATE INDEX idx_endpoints_section_address ON endpoints(section_id, address);
+CREATE INDEX idx_endpoints_workspace_address ON endpoints(workspace_id, address);
 
 --------------------------------------------------------------------------------
 -- 9. ENDPOINT_TAGS (Junction)
@@ -155,7 +155,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_users_updated
-BEFORE UPDATE OF tenant_id, oauth_provider, oauth_subject, display_name, email, avatar_url ON users
+BEFORE UPDATE OF workspace_id, oauth_provider, oauth_subject, display_name, email, avatar_url ON users
 FOR EACH ROW EXECUTE FUNCTION fn_users_updated();
 
 -- Trigger 1: agents config_version + updated_at on core field change
@@ -168,17 +168,17 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_agents_updated
-BEFORE UPDATE OF name, section_id, base_config, api_key_hash, agent_version ON agents
+BEFORE UPDATE OF name, workspace_id, base_config, api_key_hash, agent_version ON agents
 FOR EACH ROW EXECUTE FUNCTION fn_agents_updated();
 
--- Trigger 2: endpoint update → set updated_at + ripple config_version to section agents
+-- Trigger 2: endpoint update → set updated_at + ripple config_version to workspace agents
 CREATE OR REPLACE FUNCTION fn_endpoints_updated() RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = NOW();
     UPDATE agents
     SET config_version = config_version + 1,
         updated_at = NOW()
-    WHERE section_id = OLD.section_id;
+    WHERE workspace_id = OLD.workspace_id;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -187,13 +187,13 @@ CREATE TRIGGER trg_endpoints_updated
 BEFORE UPDATE OF address, enabled ON endpoints
 FOR EACH ROW EXECUTE FUNCTION fn_endpoints_updated();
 
--- Trigger 3: new endpoint → ripple config_version to section agents
+-- Trigger 3: new endpoint → ripple config_version to workspace agents
 CREATE OR REPLACE FUNCTION fn_endpoints_inserted() RETURNS TRIGGER AS $$
 BEGIN
     UPDATE agents
     SET config_version = config_version + 1,
         updated_at = NOW()
-    WHERE section_id = NEW.section_id;
+    WHERE workspace_id = NEW.workspace_id;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -202,13 +202,13 @@ CREATE TRIGGER trg_endpoints_inserted
 AFTER INSERT ON endpoints
 FOR EACH ROW EXECUTE FUNCTION fn_endpoints_inserted();
 
--- Trigger 3b: endpoint delete → ripple config_version to section agents
+-- Trigger 3b: endpoint delete → ripple config_version to workspace agents
 CREATE OR REPLACE FUNCTION fn_endpoints_deleted() RETURNS TRIGGER AS $$
 BEGIN
     UPDATE agents
     SET config_version = config_version + 1,
         updated_at = NOW()
-    WHERE section_id = OLD.section_id;
+    WHERE workspace_id = OLD.workspace_id;
     RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
@@ -235,8 +235,8 @@ BEGIN
         UPDATE agents
         SET config_version = config_version + 1,
             updated_at = NOW()
-        WHERE section_id IN (
-            SELECT section_id FROM endpoints
+        WHERE workspace_id IN (
+            SELECT workspace_id FROM endpoints
             WHERE id IN (SELECT endpoint_id FROM endpoint_tags WHERE tag_id = OLD.id)
         );
     END IF;
@@ -274,7 +274,7 @@ BEGIN
         UPDATE agents
         SET config_version = config_version + 1,
             updated_at = NOW()
-        WHERE section_id = (SELECT section_id FROM endpoints WHERE id = NEW.endpoint_id);
+        WHERE workspace_id = (SELECT workspace_id FROM endpoints WHERE id = NEW.endpoint_id);
     END IF;
     RETURN NEW;
 END;
@@ -290,7 +290,7 @@ BEGIN
     UPDATE agents
     SET config_version = config_version + 1,
         updated_at = NOW()
-    WHERE section_id = (SELECT section_id FROM endpoints WHERE id = OLD.endpoint_id);
+    WHERE workspace_id = (SELECT workspace_id FROM endpoints WHERE id = OLD.endpoint_id);
     RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;

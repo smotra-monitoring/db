@@ -14,7 +14,7 @@ CREATE TABLE tenants (
 --------------------------------------------------------------------------------
 CREATE TABLE users (
     id              TEXT PRIMARY KEY,
-    tenant_id       TEXT NOT NULL,
+    workspace_id    TEXT NOT NULL,
     oauth_provider  TEXT NOT NULL,         -- e.g., 'github', 'google', 'microsoft'
     oauth_subject   TEXT NOT NULL,         -- Unique ID from OAuth provider (sub claim)
     display_name    TEXT NOT NULL,         -- User's display name
@@ -24,16 +24,16 @@ CREATE TABLE users (
     created_at      DATETIME NOT NULL DEFAULT (datetime('now')),
     updated_at      DATETIME NOT NULL DEFAULT (datetime('now')),
     UNIQUE(oauth_provider, oauth_subject),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
 -- Index for OAuth lookups
 CREATE INDEX idx_users_oauth ON users(oauth_provider, oauth_subject);
 
 --------------------------------------------------------------------------------
--- 3. SECTIONS
+-- 3. WORKSPACES
 --------------------------------------------------------------------------------
-CREATE TABLE sections (
+CREATE TABLE workspaces (
     id           TEXT PRIMARY KEY,
     tenant_id    TEXT NOT NULL,
     name         TEXT NOT NULL,
@@ -46,11 +46,11 @@ CREATE TABLE sections (
 --------------------------------------------------------------------------------
 CREATE TABLE tags (
     id           TEXT PRIMARY KEY,
-    section_id   TEXT NOT NULL,
+    workspace_id TEXT NOT NULL,
     name         TEXT NOT NULL,
     scope        TEXT NOT NULL CHECK(scope IN ('agent', 'endpoint', 'global')) DEFAULT 'global',
-    UNIQUE(section_id, name),
-    FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
+    UNIQUE(workspace_id, name),
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
@@ -89,7 +89,7 @@ CREATE INDEX idx_agent_claims_poll_count ON agent_claims(poll_count);
 --------------------------------------------------------------------------------
 CREATE TABLE agents (
     id                  TEXT PRIMARY KEY,
-    section_id          TEXT NOT NULL,
+    workspace_id        TEXT NOT NULL,
     name                TEXT NOT NULL,
     api_key_hash        TEXT NOT NULL,
     base_config         TEXT NOT NULL DEFAULT '{}', -- JSON Blob
@@ -105,7 +105,7 @@ CREATE TABLE agents (
     updated_at                DATETIME NOT NULL DEFAULT (datetime('now')),
     created_at                DATETIME NOT NULL DEFAULT (datetime('now')),  -- When claimed
     
-    FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
@@ -121,13 +121,13 @@ CREATE TABLE agent_tags (
 
 --------------------------------------------------------------------------------
 -- 8. ENDPOINTS
--- Endpoints are section-scoped, not agent-scoped.
+-- Endpoints are workspace-scoped, not agent-scoped.
 -- is_agent=1 means this endpoint represents one of our own agents.
 -- linked_agent_id optionally links back to that agent row.
 --------------------------------------------------------------------------------
 CREATE TABLE endpoints (
     id               TEXT PRIMARY KEY,
-    section_id       TEXT NOT NULL,
+    workspace_id     TEXT NOT NULL,
     address          TEXT NOT NULL,
     port             INT,
     enabled          INT NOT NULL DEFAULT 1,
@@ -135,11 +135,11 @@ CREATE TABLE endpoints (
     linked_agent_id  TEXT,                         -- FK to agents.id (nullable)
     updated_at       DATETIME NOT NULL DEFAULT (datetime('now')),
     created_at       DATETIME NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE CASCADE,
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
     FOREIGN KEY (linked_agent_id) REFERENCES agents(id) ON DELETE SET NULL
 ) WITHOUT ROWID;
 
-CREATE INDEX idx_endpoints_section_address ON endpoints(section_id, address);
+CREATE INDEX idx_endpoints_workspace_address ON endpoints(workspace_id, address);
 
 --------------------------------------------------------------------------------
 -- 9. ENDPOINT_TAGS (Junction)
@@ -159,7 +159,7 @@ CREATE TABLE endpoint_tags (
 -- Trigger 0: User Profile Update
 -- Updates timestamp when user profile data changes.
 CREATE TRIGGER trg_users_updated
-AFTER UPDATE OF tenant_id, oauth_provider, oauth_subject, display_name, email, avatar_url ON users
+AFTER UPDATE OF workspace_id, oauth_provider, oauth_subject, display_name, email, avatar_url ON users
 FOR EACH ROW
 BEGIN
     UPDATE users 
@@ -170,7 +170,7 @@ END;
 -- Trigger 1: Direct Agent Update
 -- Bumps version when core agent data changes.
 CREATE TRIGGER trg_agents_updated
-AFTER UPDATE OF name, section_id, base_config, api_key_hash, agent_version ON agents
+AFTER UPDATE OF name, workspace_id, base_config, api_key_hash, agent_version ON agents
 FOR EACH ROW
 BEGIN
     UPDATE agents 
@@ -180,7 +180,7 @@ BEGIN
 END;
 
 -- Trigger 2: Direct Endpoint Update
--- Updates endpoint timestamp and bumps config_version for all agents in the same section.
+-- Updates endpoint timestamp and bumps config_version for all agents in the same workspace.
 CREATE TRIGGER trg_endpoints_updated
 AFTER UPDATE OF address, enabled ON endpoints
 FOR EACH ROW
@@ -192,11 +192,11 @@ BEGIN
     UPDATE agents 
     SET config_version = config_version + 1,
         updated_at = datetime('now')
-    WHERE section_id = OLD.section_id;
+    WHERE workspace_id = OLD.workspace_id;
 END;
 
 -- Trigger 3: New Endpoint Insert
--- Bumps config_version for all agents in the section when a new endpoint is added.
+-- Bumps config_version for all agents in the workspace when a new endpoint is added.
 CREATE TRIGGER trg_endpoints_inserted
 AFTER INSERT ON endpoints
 FOR EACH ROW
@@ -204,11 +204,11 @@ BEGIN
     UPDATE agents 
     SET config_version = config_version + 1,
         updated_at = datetime('now')
-    WHERE section_id = NEW.section_id;
+    WHERE workspace_id = NEW.workspace_id;
 END;
 
 -- Trigger 3b: Endpoint Delete
--- Bumps config_version for all agents in the section so they stop trying to
+-- Bumps config_version for all agents in the workspace so they stop trying to
 -- submit results for the now-removed endpoint.
 CREATE TRIGGER trg_endpoints_deleted
 AFTER DELETE ON endpoints
@@ -217,7 +217,7 @@ BEGIN
     UPDATE agents
     SET config_version = config_version + 1,
         updated_at = datetime('now')
-    WHERE section_id = OLD.section_id;
+    WHERE workspace_id = OLD.workspace_id;
 END;
 
 -- Trigger 4: Tag Name Change (The Big Ripple)
@@ -239,12 +239,12 @@ BEGIN
     WHERE id IN (SELECT endpoint_id FROM endpoint_tags WHERE tag_id = OLD.id)
     AND (OLD.scope = 'endpoint' OR OLD.scope = 'global');
 
-    -- Ripple to all Agents in sections that contain affected endpoints
+    -- Ripple to all Agents in workspaces that contain affected endpoints
     UPDATE agents 
     SET config_version = config_version + 1,
         updated_at = datetime('now')
-    WHERE section_id IN (
-        SELECT section_id FROM endpoints 
+    WHERE workspace_id IN (
+        SELECT workspace_id FROM endpoints 
         WHERE id IN (SELECT endpoint_id FROM endpoint_tags WHERE tag_id = OLD.id)
     ) AND (OLD.scope = 'endpoint' OR OLD.scope = 'global');
 END;
@@ -269,7 +269,7 @@ WHEN (SELECT scope FROM tags WHERE id = NEW.tag_id) IN ('endpoint', 'global')
 BEGIN
     UPDATE endpoints SET updated_at = datetime('now') WHERE id = NEW.endpoint_id;
     UPDATE agents SET config_version = config_version + 1, updated_at = datetime('now')
-    WHERE section_id = (SELECT section_id FROM endpoints WHERE id = NEW.endpoint_id);
+    WHERE workspace_id = (SELECT workspace_id FROM endpoints WHERE id = NEW.endpoint_id);
 END;
 
 -- Trigger 6b: Endpoint Tag Linkage Change (DELETE)
@@ -280,7 +280,7 @@ AFTER DELETE ON endpoint_tags
 FOR EACH ROW
 BEGIN
     UPDATE agents SET config_version = config_version + 1, updated_at = datetime('now')
-    WHERE section_id = (SELECT section_id FROM endpoints WHERE id = OLD.endpoint_id);
+    WHERE workspace_id = (SELECT workspace_id FROM endpoints WHERE id = OLD.endpoint_id);
 END;
 
 --------------------------------------------------------------------------------

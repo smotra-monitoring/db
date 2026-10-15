@@ -1,4 +1,4 @@
-name: Build, Validate, and Release
+name: Validate DB Migrations
 
 on:
   pull_request:

@@ -57,6 +57,10 @@ jobs:
   build:
     needs: [validate-migrations]
     runs-on: ubuntu-latest
+    
+    environment:
+      name: Release
+
     steps:
       - name: Checkout
         uses: actions/checkout@v7

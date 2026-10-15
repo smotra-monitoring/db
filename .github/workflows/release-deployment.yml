@@ -19,43 +19,11 @@ env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
 
 jobs:
-  validate-migrations:
-    runs-on: ubuntu-latest
-    services:
-      timescaledb:
-        image: timescale/timescaledb:latest-pg16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: smotra_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          submodules: recursive
-
-      - name: Install golang-migrate
-        run: |
-          LATEST=$(curl -fsSL https://api.github.com/repos/golang-migrate/migrate/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
-          curl -fsSL "https://github.com/golang-migrate/migrate/releases/download/${LATEST}/migrate.linux-amd64.tar.gz" | tar xz
-          sudo mv migrate /usr/local/bin/migrate
-
-      - name: Apply prod migrations
-        run: |
-          migrate \
-            -path prod/migrations \
-            -database "postgres://postgres:postgres@localhost:5432/smotra_test?sslmode=disable" \
-            up
+  call-migration-check:
+    uses: ./.github/workflows/validate-migrations.yml
 
   build:
-    needs: [validate-migrations]
+    needs: [call-migration-check]
     runs-on: ubuntu-latest
     
     environment:

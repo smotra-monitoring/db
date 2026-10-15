@@ -10,7 +10,18 @@ CREATE TABLE tenants (
 ) WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
--- 2. USERS
+-- 2. WORKSPACES
+--------------------------------------------------------------------------------
+CREATE TABLE workspaces (
+    id           TEXT PRIMARY KEY,
+    tenant_id    TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    UNIQUE(tenant_id, name),
+    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+) WITHOUT ROWID;
+
+--------------------------------------------------------------------------------
+-- 3. USERS
 --------------------------------------------------------------------------------
 CREATE TABLE users (
     id              TEXT PRIMARY KEY,
@@ -29,17 +40,6 @@ CREATE TABLE users (
 
 -- Index for OAuth lookups
 CREATE INDEX idx_users_oauth ON users(oauth_provider, oauth_subject);
-
---------------------------------------------------------------------------------
--- 3. WORKSPACES
---------------------------------------------------------------------------------
-CREATE TABLE workspaces (
-    id           TEXT PRIMARY KEY,
-    tenant_id    TEXT NOT NULL,
-    name         TEXT NOT NULL,
-    UNIQUE(tenant_id, name),
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
-) WITHOUT ROWID;
 
 --------------------------------------------------------------------------------
 -- 4. TAGS

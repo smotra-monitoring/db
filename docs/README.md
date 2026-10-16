@@ -33,7 +33,7 @@ Each file is numbered and self-contained. Apply them in order.
 
 | # | File | Contents |
 |---|------|----------|
-| 0001 | `0001_schema.up.sql` | Core schema: tenants, users, sections, tags, agents, endpoints, all triggers |
+| 0001 | `0001_schema.up.sql` | Core schema: tenants, users, workspaces, tags, agents, endpoints, all triggers |
 | 0002 | `0002_check_results.up.sql` | Check result tables (base + per-type); TimescaleDB hypertable on `checked_at` |
 | 0003 | `0003_topology.up.sql` | Topology and topology_members tables + triggers |
 | 0004 | `0004_agent_vitals.up.sql` | Agent vitals time-series; TimescaleDB hypertable on `reported_at` |
@@ -110,7 +110,7 @@ migrate -path prod/migrations -database "$DATABASE_URL" down 1
 
 ### Multi-tenancy
 
-Every piece of data is anchored to a `tenant`. Tenants are subdivided into `sections` (e.g. geographic regions). Tags, agents, endpoints and topologies are all section-scoped.
+Every piece of data is anchored to a `tenant`. Tenants are subdivided into `workspaces` (e.g. business units or teams). Tags, agents, endpoints and topologies are all workspace-scoped.
 
 ### Agent claiming
 
@@ -118,7 +118,7 @@ Agents self-register into `agent_claims` with a short-lived claim token. A user 
 
 ### Config versioning
 
-`agents.config_version` is incremented automatically by triggers whenever anything the agent cares about changes (its own fields, its tags, the endpoints in its section, the topologies it participates in). Agents poll for config using this version as an ETag equivalent.
+`agents.config_version` is incremented automatically by triggers whenever anything the agent cares about changes (its own fields, its tags, the endpoints in its workspace, the topologies it participates in). Agents poll for config using this version as an ETag equivalent.
 
 ### Monitoring topology
 

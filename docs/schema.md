@@ -4,13 +4,13 @@
 
 ```mermaid
 erDiagram
-    tenants ||--o{ sections : "has"
-    tenants ||--o{ users    : "has"
+    tenants ||--o{ workspaces : "has"
+    workspaces ||--o{ users    : "has"
 
-    sections ||--o{ tags        : "has"
-    sections ||--o{ agents      : "has"
-    sections ||--o{ endpoints   : "has"
-    sections ||--o{ topologies  : "has"
+    workspaces ||--o{ tags        : "has"
+    workspaces ||--o{ agents      : "has"
+    workspaces ||--o{ endpoints   : "has"
+    workspaces ||--o{ topologies  : "has"
 
     agents    }o--o{ tags      : "agent_tags"
     endpoints }o--o{ tags      : "endpoint_tags"
@@ -59,7 +59,7 @@ OAuth2-authenticated users, one per provider identity.
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | TEXT PK | UUIDv7 |
-| `tenant_id` | TEXT FK→tenants | |
+| `workspace_id` | TEXT FK→workspaces | |
 | `oauth_provider` | TEXT | e.g. `github`, `google`, `microsoft` |
 | `oauth_subject` | TEXT | `sub` claim from the IDP |
 | `display_name` | TEXT | |
@@ -73,9 +73,9 @@ OAuth2-authenticated users, one per provider identity.
 
 ---
 
-### `sections`
+### `workspaces`
 
-Subdivision of a tenant (e.g. geographic region, business unit).
+Organizational unit within a tenant — a business unit, team, or the individual person for single-user tenants.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -94,13 +94,13 @@ Named labels attached to agents or endpoints to drive topology resolution.
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | TEXT PK | UUIDv7 |
-| `section_id` | TEXT FK→sections | |
+| `workspace_id` | TEXT FK→workspaces | |
 | `name` | TEXT | |
 | `scope` | TEXT | `agent` \| `endpoint` \| `global` |
 
-**Unique constraint:** `(section_id, name)`
+**Unique constraint:** `(workspace_id, name)`
 
-Scope controls trigger ripple direction: `agent` tags ripple to agents, `endpoint` tags ripple to endpoints (and then to agents in that section), `global` does both.
+Scope controls trigger ripple direction: `agent` tags ripple to agents, `endpoint` tags ripple to endpoints (and then to agents in that workspace), `global` does both.
 
 ---
 
@@ -140,7 +140,7 @@ Claimed, active monitoring agents.
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | TEXT PK | UUIDv7 |
-| `section_id` | TEXT FK→sections | |
+| `workspace_id` | TEXT FK→workspaces | |
 | `name` | TEXT | Display name |
 | `api_key_hash` | TEXT | SHA-256 of the agent's API key |
 | `base_config` | JSONB | Agent configuration blob |
@@ -172,7 +172,7 @@ Monitoring targets. Can represent an external service or one of the platform's o
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | TEXT PK | UUIDv7 |
-| `section_id` | TEXT FK→sections | |
+| `workspace_id` | TEXT FK→workspaces | |
 | `address` | TEXT | IP or hostname |
 | `port` | INTEGER | Nullable |
 | `enabled` | BOOLEAN | |
@@ -201,14 +201,14 @@ Defines a monitoring assignment between a set of agent tags and a set of endpoin
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | TEXT PK | UUIDv7 |
-| `section_id` | TEXT FK→sections | |
+| `workspace_id` | TEXT FK→workspaces | |
 | `name` | TEXT | |
 | `type` | TEXT | `full-mesh` \| `hub-and-spoke` \| `one-way` |
 | `enabled` | BOOLEAN | |
 | `updated_at` | TIMESTAMPTZ | |
 | `created_at` | TIMESTAMPTZ | |
 
-**Unique constraint:** `(section_id, name)`
+**Unique constraint:** `(workspace_id, name)`
 
 ---
 
@@ -430,15 +430,15 @@ All triggers fire in response to data changes and keep `config_version` and `upd
 |---------|-------|-------|--------|
 | `trg_users_updated` | `users` | BEFORE UPDATE of profile fields | Sets `updated_at = NOW()` |
 | `trg_agents_updated` | `agents` | BEFORE UPDATE of core fields | Increments `config_version`, sets `updated_at` |
-| `trg_endpoints_updated` | `endpoints` | BEFORE UPDATE of `address`, `enabled` | Sets `updated_at`; bumps `config_version` for all agents in section |
-| `trg_endpoints_inserted` | `endpoints` | AFTER INSERT | Bumps `config_version` for all agents in section |
-| `trg_endpoints_deleted` | `endpoints` | AFTER DELETE | Bumps `config_version` for all agents in section |
+| `trg_endpoints_updated` | `endpoints` | BEFORE UPDATE of `address`, `enabled` | Sets `updated_at`; bumps `config_version` for all agents in workspace |
+| `trg_endpoints_inserted` | `endpoints` | AFTER INSERT | Bumps `config_version` for all agents in workspace |
+| `trg_endpoints_deleted` | `endpoints` | AFTER DELETE | Bumps `config_version` for all agents in workspace |
 | `trg_tag_name_updated` | `tags` | AFTER UPDATE of `name` | Ripples to agents (agent/global scope) and endpoints (endpoint/global scope) |
 | `trg_agent_tags_changed` | `agent_tags` | AFTER INSERT | Bumps `config_version` for the agent if tag is agent/global scope |
-| `trg_endpoint_tags_changed` | `endpoint_tags` | AFTER INSERT | Updates endpoint `updated_at`; bumps `config_version` for section agents |
-| `trg_endpoint_tags_deleted` | `endpoint_tags` | AFTER DELETE | Bumps `config_version` for section agents |
-| `trg_topologies_inserted` | `topologies` | AFTER INSERT | Bumps `config_version` for all agents in section |
-| `trg_topologies_updated` | `topologies` | BEFORE UPDATE of `name`, `type`, `enabled` | Sets `updated_at`; bumps `config_version` for section agents |
-| `trg_topology_members_inserted` | `topology_members` | AFTER INSERT | Bumps `config_version` for section agents |
-| `trg_topology_members_updated` | `topology_members` | AFTER UPDATE of `role` | Bumps `config_version` for section agents |
-| `trg_topology_members_deleted` | `topology_members` | AFTER DELETE | Bumps `config_version` for section agents |
+| `trg_endpoint_tags_changed` | `endpoint_tags` | AFTER INSERT | Updates endpoint `updated_at`; bumps `config_version` for workspace agents |
+| `trg_endpoint_tags_deleted` | `endpoint_tags` | AFTER DELETE | Bumps `config_version` for workspace agents |
+| `trg_topologies_inserted` | `topologies` | AFTER INSERT | Bumps `config_version` for all agents in workspace |
+| `trg_topologies_updated` | `topologies` | BEFORE UPDATE of `name`, `type`, `enabled` | Sets `updated_at`; bumps `config_version` for workspace agents |
+| `trg_topology_members_inserted` | `topology_members` | AFTER INSERT | Bumps `config_version` for workspace agents |
+| `trg_topology_members_updated` | `topology_members` | AFTER UPDATE of `role` | Bumps `config_version` for workspace agents |
+| `trg_topology_members_deleted` | `topology_members` | AFTER DELETE | Bumps `config_version` for workspace agents |

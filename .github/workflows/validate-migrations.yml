@@ -51,6 +51,7 @@ jobs:
           migrate \
             -path prod/migrations \
             -database "postgres://postgres:postgres@localhost:5432/smotra_test?sslmode=disable" \
+            -verbose \
             up
 
       - name: Apply "prod down" migrations
@@ -58,6 +59,7 @@ jobs:
           migrate \
             -path prod/migrations \
             -database "postgres://postgres:postgres@localhost:5432/smotra_test?sslmode=disable" \
+            -verbose \
             down \
             -all
           

@@ -31,6 +31,8 @@ CREATE TABLE sessions (
     expires_at                  DATETIME NOT NULL,                          -- Hard cap: created_at + 90 days, never updated
     last_used_at                DATETIME NOT NULL DEFAULT (datetime('now')),
     revoked                     INTEGER NOT NULL DEFAULT 0,                 -- Boolean: 1 = revoked
+    ip_address                  TEXT,                                       -- Client IP at session creation (NULL if unknown)
+    user_agent                  TEXT,                                       -- Client User-Agent at session creation
 
     -- Identity provider
     oauth2_provider             TEXT NOT NULL,                              -- e.g. 'github', 'google'
@@ -50,5 +52,6 @@ CREATE TABLE sessions (
 
 CREATE INDEX idx_sessions_token_hash         ON sessions(token_hash);
 CREATE INDEX idx_sessions_user_id            ON sessions(user_id);
+CREATE INDEX idx_sessions_user_id_revoked    ON sessions(user_id, revoked);
 CREATE INDEX idx_sessions_sliding_expires_at ON sessions(sliding_expires_at);
 CREATE INDEX idx_sessions_expires_at         ON sessions(expires_at);

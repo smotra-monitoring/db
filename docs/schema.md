@@ -409,7 +409,9 @@ Long-lived server-managed sessions. The plaintext token is never stored.
 | `sliding_expires_at` | TIMESTAMPTZ | Extended on each IDP refresh; capped at `expires_at` |
 | `expires_at` | TIMESTAMPTZ | Hard cap: `created_at + 90 days` |
 | `last_used_at` | TIMESTAMPTZ | |
-| `revoked` | BOOLEAN | |
+| `revoked` | BOOLEAN | Purged/logged-out sessions; a session is active when `revoked` is false and not expired |
+| `ip_address` | TEXT | Client IP at creation; nullable |
+| `user_agent` | TEXT | Client `User-Agent` at creation (truncated to 512 bytes); nullable |
 | `oauth2_provider` | TEXT | |
 | `oauth2_access_token` | TEXT | Stored server-side only |
 | `oauth2_refresh_token` | TEXT | Nullable |

@@ -118,7 +118,7 @@ Agents self-register into `agent_claims` with a short-lived claim token. A user 
 
 ### Config versioning
 
-`agents.config_version` is incremented automatically by triggers whenever anything the agent cares about changes (its own fields, its tags, the endpoints in its workspace, the topologies it participates in). Agents poll for config using this version as an ETag equivalent.
+`agents.config_version_desired` is incremented automatically by triggers whenever anything the agent cares about changes (its own fields, its tags, the endpoints in its workspace, the topologies it participates in). Agents poll for config using this version as an ETag equivalent. `agents.config_version_current` is the version the agent last reported in a heartbeat; a lower value than `config_version_desired` indicates config drift.
 
 ### Monitoring topology
 

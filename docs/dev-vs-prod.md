@@ -40,7 +40,7 @@ CREATE TRIGGER trg_agents_updated
 AFTER UPDATE OF name ON agents
 FOR EACH ROW
 BEGIN
-    UPDATE agents SET config_version = OLD.config_version + 1 WHERE id = OLD.id;
+    UPDATE agents SET config_version_desired = OLD.config_version_desired + 1 WHERE id = OLD.id;
 END;
 ```
 
@@ -48,7 +48,7 @@ END;
 ```sql
 CREATE OR REPLACE FUNCTION fn_agents_updated() RETURNS TRIGGER AS $$
 BEGIN
-    NEW.config_version = OLD.config_version + 1;
+    NEW.config_version_desired = OLD.config_version_desired + 1;
     NEW.updated_at = NOW();
     RETURN NEW;
 END;

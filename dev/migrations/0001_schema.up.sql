@@ -93,10 +93,11 @@ CREATE TABLE agents (
     name                TEXT NOT NULL,
     api_key_hash        TEXT NOT NULL,
     base_config         TEXT NOT NULL DEFAULT '{}', -- JSON Blob
-    config_version      INT NOT NULL DEFAULT 1,     -- Incremented on any config change to trigger agent updates
+    config_version_desired INT NOT NULL DEFAULT 1,  -- Incremented on any config change to trigger agent updates
+    config_version_current INT,                     -- Config version last reported by the agent heartbeat; NULL until first heartbeat
     
     -- Agent metadata
-    agent_version       TEXT,                        -- Agent software version
+    agent_version       TEXT,                        -- Agent software version; refreshed from heartbeat
     ip_addresses_json   TEXT NOT NULL DEFAULT '[]',  -- JSON array of AgentNetworkInterface objects
     
     -- Lifecycle tracking
@@ -168,19 +169,20 @@ BEGIN
 END;
 
 -- Trigger 1: Direct Agent Update
--- Bumps version when core agent data changes.
+-- Bumps desired config version when core agent data changes.
+-- agent_version and config_version_current are heartbeat-reported and intentionally excluded.
 CREATE TRIGGER trg_agents_updated
-AFTER UPDATE OF name, workspace_id, base_config, api_key_hash, agent_version ON agents
+AFTER UPDATE OF name, workspace_id, base_config, api_key_hash ON agents
 FOR EACH ROW
 BEGIN
     UPDATE agents 
-    SET config_version = OLD.config_version + 1,
+    SET config_version_desired = OLD.config_version_desired + 1,
         updated_at = datetime('now')
     WHERE id = OLD.id;
 END;
 
 -- Trigger 2: Direct Endpoint Update
--- Updates endpoint timestamp and bumps config_version for all agents in the same workspace.
+-- Updates endpoint timestamp and bumps config_version_desired for all agents in the same workspace.
 CREATE TRIGGER trg_endpoints_updated
 AFTER UPDATE OF address, enabled ON endpoints
 FOR EACH ROW
@@ -190,45 +192,45 @@ BEGIN
     WHERE id = OLD.id;
 
     UPDATE agents 
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = datetime('now')
     WHERE workspace_id = OLD.workspace_id;
 END;
 
 -- Trigger 3: New Endpoint Insert
--- Bumps config_version for all agents in the workspace when a new endpoint is added.
+-- Bumps config_version_desired for all agents in the workspace when a new endpoint is added.
 CREATE TRIGGER trg_endpoints_inserted
 AFTER INSERT ON endpoints
 FOR EACH ROW
 BEGIN
     UPDATE agents 
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = datetime('now')
     WHERE workspace_id = NEW.workspace_id;
 END;
 
 -- Trigger 3b: Endpoint Delete
--- Bumps config_version for all agents in the workspace so they stop trying to
+-- Bumps config_version_desired for all agents in the workspace so they stop trying to
 -- submit results for the now-removed endpoint.
 CREATE TRIGGER trg_endpoints_deleted
 AFTER DELETE ON endpoints
 FOR EACH ROW
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = datetime('now')
     WHERE workspace_id = OLD.workspace_id;
 END;
 
 -- Trigger 4: Tag Name Change (The Big Ripple)
--- Updates all affected endpoints and bumps config_version for all affected agents.
+-- Updates all affected endpoints and bumps config_version_desired for all affected agents.
 CREATE TRIGGER trg_tag_name_updated
 AFTER UPDATE OF name ON tags
 FOR EACH ROW
 BEGIN
     -- Ripple to Agents (Agent/Global scope)
     UPDATE agents 
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = datetime('now')
     WHERE id IN (SELECT agent_id FROM agent_tags WHERE tag_id = OLD.id)
     AND (OLD.scope = 'agent' OR OLD.scope = 'global');
@@ -241,7 +243,7 @@ BEGIN
 
     -- Ripple to all Agents in workspaces that contain affected endpoints
     UPDATE agents 
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = datetime('now')
     WHERE workspace_id IN (
         SELECT workspace_id FROM endpoints 
@@ -256,7 +258,7 @@ FOR EACH ROW
 WHEN (SELECT scope FROM tags WHERE id = NEW.tag_id) IN ('agent', 'global')
 BEGIN
     UPDATE agents 
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = datetime('now')
     WHERE id = NEW.agent_id;
 END;
@@ -268,7 +270,7 @@ FOR EACH ROW
 WHEN (SELECT scope FROM tags WHERE id = NEW.tag_id) IN ('endpoint', 'global')
 BEGIN
     UPDATE endpoints SET updated_at = datetime('now') WHERE id = NEW.endpoint_id;
-    UPDATE agents SET config_version = config_version + 1, updated_at = datetime('now')
+    UPDATE agents SET config_version_desired = config_version_desired + 1, updated_at = datetime('now')
     WHERE workspace_id = (SELECT workspace_id FROM endpoints WHERE id = NEW.endpoint_id);
 END;
 
@@ -279,7 +281,7 @@ CREATE TRIGGER trg_endpoint_tags_deleted
 AFTER DELETE ON endpoint_tags
 FOR EACH ROW
 BEGIN
-    UPDATE agents SET config_version = config_version + 1, updated_at = datetime('now')
+    UPDATE agents SET config_version_desired = config_version_desired + 1, updated_at = datetime('now')
     WHERE workspace_id = (SELECT workspace_id FROM endpoints WHERE id = OLD.endpoint_id);
 END;
 

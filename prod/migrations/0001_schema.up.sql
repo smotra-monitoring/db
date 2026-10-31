@@ -86,10 +86,11 @@ CREATE TABLE agents (
     name                TEXT NOT NULL,
     api_key_hash        TEXT NOT NULL,
     base_config         JSONB NOT NULL DEFAULT '{}',
-    config_version      INTEGER NOT NULL DEFAULT 1,     -- Incremented on any config change
+    config_version_desired INTEGER NOT NULL DEFAULT 1,  -- Incremented on any config change
+    config_version_current INTEGER,                     -- Config version last reported by the agent heartbeat; NULL until first heartbeat
 
     -- Agent metadata
-    agent_version       TEXT,
+    agent_version       TEXT,                           -- Refreshed from heartbeat
     ip_addresses_json   JSONB NOT NULL DEFAULT '[]',
 
     -- Lifecycle tracking
@@ -158,25 +159,26 @@ CREATE TRIGGER trg_users_updated
 BEFORE UPDATE OF workspace_id, oauth_provider, oauth_subject, display_name, email, avatar_url ON users
 FOR EACH ROW EXECUTE FUNCTION fn_users_updated();
 
--- Trigger 1: agents config_version + updated_at on core field change
+-- Trigger 1: agents config_version_desired + updated_at on core field change
+-- agent_version and config_version_current are heartbeat-reported and intentionally excluded.
 CREATE OR REPLACE FUNCTION fn_agents_updated() RETURNS TRIGGER AS $$
 BEGIN
-    NEW.config_version = OLD.config_version + 1;
+    NEW.config_version_desired = OLD.config_version_desired + 1;
     NEW.updated_at = NOW();
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_agents_updated
-BEFORE UPDATE OF name, workspace_id, base_config, api_key_hash, agent_version ON agents
+BEFORE UPDATE OF name, workspace_id, base_config, api_key_hash ON agents
 FOR EACH ROW EXECUTE FUNCTION fn_agents_updated();
 
--- Trigger 2: endpoint update → set updated_at + ripple config_version to workspace agents
+-- Trigger 2: endpoint update → set updated_at + ripple config_version_desired to workspace agents
 CREATE OR REPLACE FUNCTION fn_endpoints_updated() RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = NOW();
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = NOW()
     WHERE workspace_id = OLD.workspace_id;
     RETURN NEW;
@@ -187,11 +189,11 @@ CREATE TRIGGER trg_endpoints_updated
 BEFORE UPDATE OF address, enabled ON endpoints
 FOR EACH ROW EXECUTE FUNCTION fn_endpoints_updated();
 
--- Trigger 3: new endpoint → ripple config_version to workspace agents
+-- Trigger 3: new endpoint → ripple config_version_desired to workspace agents
 CREATE OR REPLACE FUNCTION fn_endpoints_inserted() RETURNS TRIGGER AS $$
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = NOW()
     WHERE workspace_id = NEW.workspace_id;
     RETURN NEW;
@@ -202,11 +204,11 @@ CREATE TRIGGER trg_endpoints_inserted
 AFTER INSERT ON endpoints
 FOR EACH ROW EXECUTE FUNCTION fn_endpoints_inserted();
 
--- Trigger 3b: endpoint delete → ripple config_version to workspace agents
+-- Trigger 3b: endpoint delete → ripple config_version_desired to workspace agents
 CREATE OR REPLACE FUNCTION fn_endpoints_deleted() RETURNS TRIGGER AS $$
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = NOW()
     WHERE workspace_id = OLD.workspace_id;
     RETURN OLD;
@@ -222,7 +224,7 @@ CREATE OR REPLACE FUNCTION fn_tag_name_updated() RETURNS TRIGGER AS $$
 BEGIN
     IF OLD.scope IN ('agent', 'global') THEN
         UPDATE agents
-        SET config_version = config_version + 1,
+        SET config_version_desired = config_version_desired + 1,
             updated_at = NOW()
         WHERE id IN (SELECT agent_id FROM agent_tags WHERE tag_id = OLD.id);
     END IF;
@@ -233,7 +235,7 @@ BEGIN
         WHERE id IN (SELECT endpoint_id FROM endpoint_tags WHERE tag_id = OLD.id);
 
         UPDATE agents
-        SET config_version = config_version + 1,
+        SET config_version_desired = config_version_desired + 1,
             updated_at = NOW()
         WHERE workspace_id IN (
             SELECT workspace_id FROM endpoints
@@ -254,7 +256,7 @@ CREATE OR REPLACE FUNCTION fn_agent_tags_changed() RETURNS TRIGGER AS $$
 BEGIN
     IF (SELECT scope FROM tags WHERE id = NEW.tag_id) IN ('agent', 'global') THEN
         UPDATE agents
-        SET config_version = config_version + 1,
+        SET config_version_desired = config_version_desired + 1,
             updated_at = NOW()
         WHERE id = NEW.agent_id;
     END IF;
@@ -272,7 +274,7 @@ BEGIN
     IF (SELECT scope FROM tags WHERE id = NEW.tag_id) IN ('endpoint', 'global') THEN
         UPDATE endpoints SET updated_at = NOW() WHERE id = NEW.endpoint_id;
         UPDATE agents
-        SET config_version = config_version + 1,
+        SET config_version_desired = config_version_desired + 1,
             updated_at = NOW()
         WHERE workspace_id = (SELECT workspace_id FROM endpoints WHERE id = NEW.endpoint_id);
     END IF;
@@ -284,11 +286,11 @@ CREATE TRIGGER trg_endpoint_tags_changed
 AFTER INSERT ON endpoint_tags
 FOR EACH ROW EXECUTE FUNCTION fn_endpoint_tags_changed();
 
--- Trigger 6b: endpoint tag delete → ripple config_version to section agents
+-- Trigger 6b: endpoint tag delete → ripple config_version_desired to section agents
 CREATE OR REPLACE FUNCTION fn_endpoint_tags_deleted() RETURNS TRIGGER AS $$
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = NOW()
     WHERE workspace_id = (SELECT workspace_id FROM endpoints WHERE id = OLD.endpoint_id);
     RETURN OLD;

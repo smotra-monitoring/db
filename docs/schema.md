@@ -144,8 +144,9 @@ Claimed, active monitoring agents.
 | `name` | TEXT | Display name |
 | `api_key_hash` | TEXT | SHA-256 of the agent's API key |
 | `base_config` | JSONB | Agent configuration blob |
-| `config_version` | INTEGER | Incremented by triggers on any config-relevant change |
-| `agent_version` | TEXT | Nullable; reported by agent |
+| `config_version_desired` | INTEGER | Version the server wants the agent to run; incremented by triggers on any config-relevant change |
+| `config_version_current` | INTEGER | Nullable; config version last reported by the agent heartbeat. `config_version_desired > config_version_current` means config drift |
+| `agent_version` | TEXT | Nullable; refreshed from the agent heartbeat. Changing it does not bump `config_version_desired` |
 | `ip_addresses_json` | JSONB | Array of `AgentNetworkInterface` |
 | `last_seen_at` | TIMESTAMPTZ | Nullable; last heartbeat/config fetch |
 | `last_result_submitted_at` | TIMESTAMPTZ | Nullable |
@@ -351,14 +352,12 @@ WHERE hop = 5;
 
 ### `agent_vitals` *(TimescaleDB hypertable in prod)*
 
-Periodic host-resource snapshots. Partitioned by `reported_at`.
+Periodic host-resource and agent-status snapshots. Partitioned by `reported_at`. Agent and config versions are not stored here; they live on `agents` (`agent_version`, `config_version_current`).
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | TEXT | UUIDv7, server-generated |
 | `agent_id` | TEXT FK→agents | |
-| `agent_version` | TEXT | Nullable |
-| `config_version` | INTEGER | Nullable |
 | `is_running` | BOOLEAN | Nullable |
 | `checks_performed` | INTEGER | Nullable |
 | `checks_successful` | INTEGER | Nullable |
@@ -426,21 +425,21 @@ Long-lived server-managed sessions. The plaintext token is never stored.
 
 ## Triggers
 
-All triggers fire in response to data changes and keep `config_version` and `updated_at` consistent automatically.
+All triggers fire in response to data changes and keep `config_version_desired` and `updated_at` consistent automatically.
 
 | Trigger | Table | Event | Effect |
 |---------|-------|-------|--------|
 | `trg_users_updated` | `users` | BEFORE UPDATE of profile fields | Sets `updated_at = NOW()` |
-| `trg_agents_updated` | `agents` | BEFORE UPDATE of core fields | Increments `config_version`, sets `updated_at` |
-| `trg_endpoints_updated` | `endpoints` | BEFORE UPDATE of `address`, `enabled` | Sets `updated_at`; bumps `config_version` for all agents in workspace |
-| `trg_endpoints_inserted` | `endpoints` | AFTER INSERT | Bumps `config_version` for all agents in workspace |
-| `trg_endpoints_deleted` | `endpoints` | AFTER DELETE | Bumps `config_version` for all agents in workspace |
+| `trg_agents_updated` | `agents` | BEFORE UPDATE of `name`, `workspace_id`, `base_config`, `api_key_hash` | Increments `config_version_desired`, sets `updated_at`. Heartbeat-reported `agent_version` and `config_version_current` do not fire it |
+| `trg_endpoints_updated` | `endpoints` | BEFORE UPDATE of `address`, `enabled` | Sets `updated_at`; bumps `config_version_desired` for all agents in workspace |
+| `trg_endpoints_inserted` | `endpoints` | AFTER INSERT | Bumps `config_version_desired` for all agents in workspace |
+| `trg_endpoints_deleted` | `endpoints` | AFTER DELETE | Bumps `config_version_desired` for all agents in workspace |
 | `trg_tag_name_updated` | `tags` | AFTER UPDATE of `name` | Ripples to agents (agent/global scope) and endpoints (endpoint/global scope) |
-| `trg_agent_tags_changed` | `agent_tags` | AFTER INSERT | Bumps `config_version` for the agent if tag is agent/global scope |
-| `trg_endpoint_tags_changed` | `endpoint_tags` | AFTER INSERT | Updates endpoint `updated_at`; bumps `config_version` for workspace agents |
-| `trg_endpoint_tags_deleted` | `endpoint_tags` | AFTER DELETE | Bumps `config_version` for workspace agents |
-| `trg_topologies_inserted` | `topologies` | AFTER INSERT | Bumps `config_version` for all agents in workspace |
-| `trg_topologies_updated` | `topologies` | BEFORE UPDATE of `name`, `type`, `enabled` | Sets `updated_at`; bumps `config_version` for workspace agents |
-| `trg_topology_members_inserted` | `topology_members` | AFTER INSERT | Bumps `config_version` for workspace agents |
-| `trg_topology_members_updated` | `topology_members` | AFTER UPDATE of `role` | Bumps `config_version` for workspace agents |
-| `trg_topology_members_deleted` | `topology_members` | AFTER DELETE | Bumps `config_version` for workspace agents |
+| `trg_agent_tags_changed` | `agent_tags` | AFTER INSERT | Bumps `config_version_desired` for the agent if tag is agent/global scope |
+| `trg_endpoint_tags_changed` | `endpoint_tags` | AFTER INSERT | Updates endpoint `updated_at`; bumps `config_version_desired` for workspace agents |
+| `trg_endpoint_tags_deleted` | `endpoint_tags` | AFTER DELETE | Bumps `config_version_desired` for workspace agents |
+| `trg_topologies_inserted` | `topologies` | AFTER INSERT | Bumps `config_version_desired` for all agents in workspace |
+| `trg_topologies_updated` | `topologies` | BEFORE UPDATE of `name`, `type`, `enabled` | Sets `updated_at`; bumps `config_version_desired` for workspace agents |
+| `trg_topology_members_inserted` | `topology_members` | AFTER INSERT | Bumps `config_version_desired` for workspace agents |
+| `trg_topology_members_updated` | `topology_members` | AFTER UPDATE of `role` | Bumps `config_version_desired` for workspace agents |
+| `trg_topology_members_deleted` | `topology_members` | AFTER DELETE | Bumps `config_version_desired` for workspace agents |

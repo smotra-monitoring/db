@@ -12,8 +12,6 @@
 CREATE TABLE agent_vitals (
     id                  TEXT NOT NULL,          -- Server-generated UUIDv7
     agent_id            TEXT NOT NULL,
-    agent_version       TEXT,
-    config_version      INTEGER,
     is_running          BOOLEAN,
     checks_performed    INTEGER,
     checks_successful   INTEGER,

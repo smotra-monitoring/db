@@ -43,11 +43,11 @@ CREATE INDEX idx_topology_members_tag ON topology_members(tag_id, role);
 -- TRIGGERS: TOPOLOGY CONFIG VERSION RIPPLES
 --------------------------------------------------------------------------------
 
--- Trigger 7a: topology insert → bump config_version for all agents in workspace
+-- Trigger 7a: topology insert → bump config_version_desired for all agents in workspace
 CREATE OR REPLACE FUNCTION fn_topologies_inserted() RETURNS TRIGGER AS $$
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = NOW()
     WHERE workspace_id = NEW.workspace_id;
     RETURN NEW;
@@ -58,12 +58,12 @@ CREATE TRIGGER trg_topologies_inserted
 AFTER INSERT ON topologies
 FOR EACH ROW EXECUTE FUNCTION fn_topologies_inserted();
 
--- Trigger 7b: topology update → bump config_version for all agents in workspace
+-- Trigger 7b: topology update → bump config_version_desired for all agents in workspace
 CREATE OR REPLACE FUNCTION fn_topologies_updated() RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = NOW();
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = NOW()
     WHERE workspace_id = NEW.workspace_id;
     RETURN NEW;
@@ -74,11 +74,11 @@ CREATE TRIGGER trg_topologies_updated
 BEFORE UPDATE OF name, type, enabled ON topologies
 FOR EACH ROW EXECUTE FUNCTION fn_topologies_updated();
 
--- Trigger 8a: topology member insert → bump config_version for workspace agents
+-- Trigger 8a: topology member insert → bump config_version_desired for workspace agents
 CREATE OR REPLACE FUNCTION fn_topology_members_inserted() RETURNS TRIGGER AS $$
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = NOW()
     WHERE workspace_id = (SELECT workspace_id FROM topologies WHERE id = NEW.topology_id);
     RETURN NEW;
@@ -89,11 +89,11 @@ CREATE TRIGGER trg_topology_members_inserted
 AFTER INSERT ON topology_members
 FOR EACH ROW EXECUTE FUNCTION fn_topology_members_inserted();
 
--- Trigger 8b: topology member role change → bump config_version for workspace agents
+-- Trigger 8b: topology member role change → bump config_version_desired for workspace agents
 CREATE OR REPLACE FUNCTION fn_topology_members_updated() RETURNS TRIGGER AS $$
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = NOW()
     WHERE workspace_id = (SELECT workspace_id FROM topologies WHERE id = NEW.topology_id);
     RETURN NEW;
@@ -104,11 +104,11 @@ CREATE TRIGGER trg_topology_members_updated
 AFTER UPDATE OF role ON topology_members
 FOR EACH ROW EXECUTE FUNCTION fn_topology_members_updated();
 
--- Trigger 8c: topology member delete → bump config_version for workspace agents
+-- Trigger 8c: topology member delete → bump config_version_desired for workspace agents
 CREATE OR REPLACE FUNCTION fn_topology_members_deleted() RETURNS TRIGGER AS $$
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at = NOW()
     WHERE workspace_id = (SELECT workspace_id FROM topologies WHERE id = OLD.topology_id);
     RETURN OLD;

@@ -47,14 +47,14 @@ CREATE INDEX idx_topology_members_tag ON topology_members(tag_id, role);
 --------------------------------------------------------------------------------
 
 -- Trigger 7: Topology Insert/Update
--- Bumps config_version for all agents in the affected workspace so they re-fetch
+-- Bumps config_version_desired for all agents in the affected workspace so they re-fetch
 -- their configuration when a topology is created or its properties change.
 CREATE TRIGGER trg_topologies_inserted
 AFTER INSERT ON topologies
 FOR EACH ROW
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at     = datetime('now')
     WHERE workspace_id = NEW.workspace_id;
 END;
@@ -64,20 +64,20 @@ AFTER UPDATE OF name, type, enabled ON topologies
 FOR EACH ROW
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at     = datetime('now')
     WHERE workspace_id = NEW.workspace_id;
 END;
 
 -- Trigger 8: Topology Member Insert/Update/Delete
--- Bumps config_version for all agents in the topology's workspace so they
+-- Bumps config_version_desired for all agents in the topology's workspace so they
 -- re-fetch when monitoring assignments change.
 CREATE TRIGGER trg_topology_members_inserted
 AFTER INSERT ON topology_members
 FOR EACH ROW
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at     = datetime('now')
     WHERE workspace_id = (SELECT workspace_id FROM topologies WHERE id = NEW.topology_id);
 END;
@@ -87,7 +87,7 @@ AFTER UPDATE OF role ON topology_members
 FOR EACH ROW
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at     = datetime('now')
     WHERE workspace_id = (SELECT workspace_id FROM topologies WHERE id = NEW.topology_id);
 END;
@@ -97,7 +97,7 @@ AFTER DELETE ON topology_members
 FOR EACH ROW
 BEGIN
     UPDATE agents
-    SET config_version = config_version + 1,
+    SET config_version_desired = config_version_desired + 1,
         updated_at     = datetime('now')
     WHERE workspace_id = (SELECT workspace_id FROM topologies WHERE id = OLD.topology_id);
 END;

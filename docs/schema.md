@@ -363,6 +363,7 @@ Periodic host-resource and agent-status snapshots. Partitioned by `reported_at`.
 | `checks_successful` | INTEGER | Nullable |
 | `checks_failed` | INTEGER | Nullable |
 | `failed_report_count` | INTEGER | Nullable |
+| `dropped_result_count` | INTEGER | Nullable; results discarded after permanent server rejection (HTTP 400/422) |
 | `server_connected` | BOOLEAN | Nullable |
 | `cache_capacity` | INTEGER | Nullable |
 | `cache_len` | INTEGER | Nullable |

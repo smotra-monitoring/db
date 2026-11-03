@@ -17,6 +17,7 @@ CREATE TABLE agent_vitals (
     checks_successful INTEGER,
     checks_failed    INTEGER,
     failed_report_count INTEGER,
+    dropped_result_count INTEGER,
     server_connected INTEGER,   -- BOOLEAN stored as 0/1
     cache_capacity  INTEGER,
     cache_len       INTEGER,

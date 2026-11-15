@@ -169,11 +169,15 @@ BEGIN
 END;
 
 -- Trigger 1: Direct Agent Update
--- Bumps desired config version when core agent data changes.
+-- Bumps desired config version when core agent data changes value.
 -- agent_version and config_version_current are heartbeat-reported and intentionally excluded.
 CREATE TRIGGER trg_agents_updated
 AFTER UPDATE OF name, workspace_id, base_config, api_key_hash ON agents
 FOR EACH ROW
+WHEN OLD.name IS NOT NEW.name
+  OR OLD.workspace_id IS NOT NEW.workspace_id
+  OR OLD.base_config IS NOT NEW.base_config
+  OR OLD.api_key_hash IS NOT NEW.api_key_hash
 BEGIN
     UPDATE agents 
     SET config_version_desired = OLD.config_version_desired + 1,
@@ -186,6 +190,7 @@ END;
 CREATE TRIGGER trg_endpoints_updated
 AFTER UPDATE OF address, enabled ON endpoints
 FOR EACH ROW
+WHEN OLD.address IS NOT NEW.address OR OLD.enabled IS NOT NEW.enabled
 BEGIN
     UPDATE endpoints 
     SET updated_at = datetime('now')
@@ -227,6 +232,7 @@ END;
 CREATE TRIGGER trg_tag_name_updated
 AFTER UPDATE OF name ON tags
 FOR EACH ROW
+WHEN OLD.name IS NOT NEW.name
 BEGIN
     -- Ripple to Agents (Agent/Global scope)
     UPDATE agents 

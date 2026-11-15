@@ -72,7 +72,11 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_topologies_updated
 BEFORE UPDATE OF name, type, enabled ON topologies
-FOR EACH ROW EXECUTE FUNCTION fn_topologies_updated();
+FOR EACH ROW
+WHEN (OLD.name IS DISTINCT FROM NEW.name
+   OR OLD.type IS DISTINCT FROM NEW.type
+   OR OLD.enabled IS DISTINCT FROM NEW.enabled)
+EXECUTE FUNCTION fn_topologies_updated();
 
 -- Trigger 8a: topology member insert → bump config_version_desired for workspace agents
 CREATE OR REPLACE FUNCTION fn_topology_members_inserted() RETURNS TRIGGER AS $$
@@ -102,7 +106,9 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_topology_members_updated
 AFTER UPDATE OF role ON topology_members
-FOR EACH ROW EXECUTE FUNCTION fn_topology_members_updated();
+FOR EACH ROW
+WHEN (OLD.role IS DISTINCT FROM NEW.role)
+EXECUTE FUNCTION fn_topology_members_updated();
 
 -- Trigger 8c: topology member delete → bump config_version_desired for workspace agents
 CREATE OR REPLACE FUNCTION fn_topology_members_deleted() RETURNS TRIGGER AS $$

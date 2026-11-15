@@ -18,6 +18,7 @@ The `dev/` and `prod/` migrations describe the same logical schema. This page do
 | `datetime('now')` | `NOW()` | Default expression syntax |
 | `INT` / `INTEGER` used as boolean | `BOOLEAN` | Native boolean; use `TRUE`/`FALSE` literals |
 | `INT` / `INTEGER` used as number | `INTEGER` | No change |
+| `config_version_desired`, `config_version_current` (`INT`) | `BIGINT` | Config versions are 64-bit end to end (SQLite `INT` is already 64-bit) |
 | `REAL` | `DOUBLE PRECISION` | |
 | `TEXT` storing JSON | `JSONB` | Binary JSON; enables operators like `->`, `@>`, indexing |
 | `TEXT` (all other) | `TEXT` | No change |
@@ -39,6 +40,7 @@ SQLite triggers use an embedded `BEGIN ... END` block. PostgreSQL requires a sep
 CREATE TRIGGER trg_agents_updated
 AFTER UPDATE OF name ON agents
 FOR EACH ROW
+WHEN OLD.name IS NOT NEW.name
 BEGIN
     UPDATE agents SET config_version_desired = OLD.config_version_desired + 1 WHERE id = OLD.id;
 END;
@@ -56,13 +58,17 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_agents_updated
 BEFORE UPDATE OF name ON agents
-FOR EACH ROW EXECUTE FUNCTION fn_agents_updated();
+FOR EACH ROW
+WHEN (OLD.name IS DISTINCT FROM NEW.name)
+EXECUTE FUNCTION fn_agents_updated();
 ```
 
 Key differences:
 - Same-row mutations use `BEFORE` triggers and modify `NEW` — no need to issue a second `UPDATE` on the same row.
 - Cross-table `UPDATE` statements (ripples) can appear inside either `BEFORE` or `AFTER` functions.
 - `DELETE` trigger functions return `OLD`; `INSERT`/`UPDATE` functions return `NEW`.
+- Every `UPDATE OF` trigger that bumps `config_version_desired` has a `WHEN` guard, so only a changed value bumps the version; an `UPDATE` that rewrites the same value does not.
+- The guard compares `base_config` as text in SQLite and as `JSONB` in PostgreSQL. A whitespace-only rewrite therefore counts as a change in SQLite but not in PostgreSQL.
 
 ## TimescaleDB hypertables
 

@@ -86,8 +86,8 @@ CREATE TABLE agents (
     name                TEXT NOT NULL,
     api_key_hash        TEXT NOT NULL,
     base_config         JSONB NOT NULL DEFAULT '{}',
-    config_version_desired INTEGER NOT NULL DEFAULT 1,  -- Incremented on any config change
-    config_version_current INTEGER,                     -- Config version last reported by the agent heartbeat; NULL until first heartbeat
+    config_version_desired BIGINT NOT NULL DEFAULT 1,   -- Incremented on any config change
+    config_version_current BIGINT,                      -- Config version last reported by the agent heartbeat; NULL until first heartbeat
 
     -- Agent metadata
     agent_version       TEXT,                           -- Refreshed from heartbeat
@@ -159,7 +159,7 @@ CREATE TRIGGER trg_users_updated
 BEFORE UPDATE OF workspace_id, oauth_provider, oauth_subject, display_name, email, avatar_url ON users
 FOR EACH ROW EXECUTE FUNCTION fn_users_updated();
 
--- Trigger 1: agents config_version_desired + updated_at on core field change
+-- Trigger 1: agents config_version_desired + updated_at when a core field changes value
 -- agent_version and config_version_current are heartbeat-reported and intentionally excluded.
 CREATE OR REPLACE FUNCTION fn_agents_updated() RETURNS TRIGGER AS $$
 BEGIN
@@ -171,7 +171,12 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_agents_updated
 BEFORE UPDATE OF name, workspace_id, base_config, api_key_hash ON agents
-FOR EACH ROW EXECUTE FUNCTION fn_agents_updated();
+FOR EACH ROW
+WHEN (OLD.name IS DISTINCT FROM NEW.name
+   OR OLD.workspace_id IS DISTINCT FROM NEW.workspace_id
+   OR OLD.base_config IS DISTINCT FROM NEW.base_config
+   OR OLD.api_key_hash IS DISTINCT FROM NEW.api_key_hash)
+EXECUTE FUNCTION fn_agents_updated();
 
 -- Trigger 2: endpoint update → set updated_at + ripple config_version_desired to workspace agents
 CREATE OR REPLACE FUNCTION fn_endpoints_updated() RETURNS TRIGGER AS $$
@@ -187,7 +192,9 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_endpoints_updated
 BEFORE UPDATE OF address, enabled ON endpoints
-FOR EACH ROW EXECUTE FUNCTION fn_endpoints_updated();
+FOR EACH ROW
+WHEN (OLD.address IS DISTINCT FROM NEW.address OR OLD.enabled IS DISTINCT FROM NEW.enabled)
+EXECUTE FUNCTION fn_endpoints_updated();
 
 -- Trigger 3: new endpoint → ripple config_version_desired to workspace agents
 CREATE OR REPLACE FUNCTION fn_endpoints_inserted() RETURNS TRIGGER AS $$
@@ -249,7 +256,9 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_tag_name_updated
 AFTER UPDATE OF name ON tags
-FOR EACH ROW EXECUTE FUNCTION fn_tag_name_updated();
+FOR EACH ROW
+WHEN (OLD.name IS DISTINCT FROM NEW.name)
+EXECUTE FUNCTION fn_tag_name_updated();
 
 -- Trigger 5: agent tag insert → ripple to agent if tag is agent/global scope
 CREATE OR REPLACE FUNCTION fn_agent_tags_changed() RETURNS TRIGGER AS $$

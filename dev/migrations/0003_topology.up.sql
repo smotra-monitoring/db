@@ -62,6 +62,7 @@ END;
 CREATE TRIGGER trg_topologies_updated
 AFTER UPDATE OF name, type, enabled ON topologies
 FOR EACH ROW
+WHEN OLD.name IS NOT NEW.name OR OLD.type IS NOT NEW.type OR OLD.enabled IS NOT NEW.enabled
 BEGIN
     UPDATE agents
     SET config_version_desired = config_version_desired + 1,
@@ -85,6 +86,7 @@ END;
 CREATE TRIGGER trg_topology_members_updated
 AFTER UPDATE OF role ON topology_members
 FOR EACH ROW
+WHEN OLD.role IS NOT NEW.role
 BEGIN
     UPDATE agents
     SET config_version_desired = config_version_desired + 1,

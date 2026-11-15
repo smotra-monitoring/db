@@ -143,9 +143,9 @@ Claimed, active monitoring agents.
 | `workspace_id` | TEXT FK→workspaces | |
 | `name` | TEXT | Display name |
 | `api_key_hash` | TEXT | SHA-256 of the agent's API key |
-| `base_config` | JSONB | Agent configuration blob |
-| `config_version_desired` | INTEGER | Version the server wants the agent to run; incremented by triggers on any config-relevant change |
-| `config_version_current` | INTEGER | Nullable; config version last reported by the agent heartbeat. `config_version_desired > config_version_current` means config drift |
+| `base_config` | JSONB | Agent configuration patch (RFC 7396 JSON Merge Patch object); served as-is by `GET /agent/{agentId}/configuration`. Holds no `tags`/`endpoints` |
+| `config_version_desired` | BIGINT | Version the server wants the agent to run; incremented by triggers when a config-relevant value changes |
+| `config_version_current` | BIGINT | Nullable; config version last reported by the agent heartbeat. `config_version_desired > config_version_current` means config drift |
 | `agent_version` | TEXT | Nullable; refreshed from the agent heartbeat. Changing it does not bump `config_version_desired` |
 | `ip_addresses_json` | JSONB | Array of `AgentNetworkInterface` |
 | `last_seen_at` | TIMESTAMPTZ | Nullable; last heartbeat/config fetch |
@@ -426,7 +426,7 @@ Long-lived server-managed sessions. The plaintext token is never stored.
 
 ## Triggers
 
-All triggers fire in response to data changes and keep `config_version_desired` and `updated_at` consistent automatically.
+All triggers fire in response to data changes and keep `config_version_desired` and `updated_at` consistent automatically. `UPDATE OF` triggers carry a `WHEN` guard and fire only when a watched column actually changes value; an `UPDATE` that writes the same value is ignored.
 
 | Trigger | Table | Event | Effect |
 |---------|-------|-------|--------|
